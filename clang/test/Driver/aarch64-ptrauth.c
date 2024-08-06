@@ -24,6 +24,7 @@
 
 // RUN: %clang -### -c --target=aarch64-darwin -fptrauth-elf-got %s 2>&1 | FileCheck %s --check-prefix=NOELFGOT
 // NOELFGOT: warning: -fptrauth-elf-got works only for ELF; option ignored [-Woption-ignored]
+
 // RUN: %clang -### -c --target=aarch64-linux -mabi=pauthtest %s 2>&1 | FileCheck %s --check-prefix=PAUTHABI1
 // RUN: %clang -### -c --target=aarch64-linux-pauthtest %s 2>&1 | FileCheck %s --check-prefix=PAUTHABI1
 // PAUTHABI1:      "-cc1"{{.*}} "-triple" "aarch64-unknown-linux-pauthtest"
