@@ -684,22 +684,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -715,22 +710,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -746,22 +736,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -777,22 +762,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -808,22 +788,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR1:[0-9]+]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -839,22 +814,17 @@ define double @test_atomicrmw_fadd_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR2:[0-9]+]] {
 ; COMMON-NEXT:    [[TMP1:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP3:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP3]], [[TMP0:%.*]] ], [ [[NEWLOADED:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fadd double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP1]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP5:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP1]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP1]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP1]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP5]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[NEWLOADED]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -962,22 +932,17 @@ define double @test_atomicrmw_fsub_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP5:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fsub double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP9:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP9]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[TMP5]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -993,22 +958,17 @@ define double @test_atomicrmw_fsub_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP5:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fsub double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP9:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP9]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[TMP5]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1024,22 +984,17 @@ define double @test_atomicrmw_fsub_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP5:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fsub double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP9:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP9]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[TMP5]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1055,22 +1010,17 @@ define double @test_atomicrmw_fsub_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP2:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP5:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[NEW:%.*]] = fsub double [[LOADED]], [[VALUE]]
-; COMMON-NEXT:    [[TMP4:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP2]])
 ; COMMON-NEXT:    store double [[NEW]], ptr addrspace(5) [[TMP2]], align 8
-; COMMON-NEXT:    [[TMP9:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP4]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP2]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP2]])
-; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP6:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP7:%.*]] = insertvalue { double, i1 } poison, double [[TMP6]], 0
-; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 [[TMP9]], 1
+; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } [[TMP7]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP8]], 1
 ; COMMON-NEXT:    [[TMP5]] = extractvalue { double, i1 } [[TMP8]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1451,22 +1401,17 @@ define double @test_atomicrmw_fmax_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.maxnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1482,22 +1427,17 @@ define double @test_atomicrmw_fmax_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.maxnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1513,22 +1453,17 @@ define double @test_atomicrmw_fmax_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.maxnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1544,22 +1479,17 @@ define double @test_atomicrmw_fmax_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.maxnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1940,22 +1870,17 @@ define double @test_atomicrmw_fmin_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.minnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -1971,22 +1896,17 @@ define double @test_atomicrmw_fmin_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.minnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -2002,22 +1922,17 @@ define double @test_atomicrmw_fmin_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.minnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]
@@ -2033,22 +1948,17 @@ define double @test_atomicrmw_fmin_f64_global_system__amdgpu_ignore_denormal_mod
 ; COMMON-SAME: ptr addrspace(1) [[PTR:%.*]], double [[VALUE:%.*]]) #[[ATTR0]] {
 ; COMMON-NEXT:    [[TMP3:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP4:%.*]] = alloca double, align 8, addrspace(5)
+; COMMON-NEXT:    [[CMPXCHG_PREV_PTR:%.*]] = alloca double, align 8, addrspace(5)
 ; COMMON-NEXT:    [[TMP1:%.*]] = load double, ptr addrspace(1) [[PTR]], align 4
 ; COMMON-NEXT:    br label [[ATOMICRMW_START:%.*]]
 ; COMMON:       atomicrmw.start:
 ; COMMON-NEXT:    [[LOADED:%.*]] = phi double [ [[TMP1]], [[TMP0:%.*]] ], [ [[TMP6:%.*]], [[ATOMICRMW_START]] ]
 ; COMMON-NEXT:    [[TMP2:%.*]] = call double @llvm.minnum.f64(double [[LOADED]], double [[VALUE]])
-; COMMON-NEXT:    [[TMP5:%.*]] = addrspacecast ptr addrspace(1) [[PTR]] to ptr
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP3]])
 ; COMMON-NEXT:    store double [[LOADED]], ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.start.p5(i64 8, ptr addrspace(5) [[TMP4]])
 ; COMMON-NEXT:    store double [[TMP2]], ptr addrspace(5) [[TMP4]], align 8
-; COMMON-NEXT:    [[TMP10:%.*]] = call zeroext i1 @__atomic_compare_exchange(i64 8, ptr [[TMP5]], ptr addrspace(5) [[TMP3]], ptr addrspace(5) [[TMP4]], i32 5, i32 5)
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP4]])
-; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[TMP3]], align 8
-; COMMON-NEXT:    call void @llvm.lifetime.end.p5(i64 8, ptr addrspace(5) [[TMP3]])
+; COMMON-NEXT:    [[TMP7:%.*]] = load double, ptr addrspace(5) [[CMPXCHG_PREV_PTR]], align 8
 ; COMMON-NEXT:    [[TMP8:%.*]] = insertvalue { double, i1 } poison, double [[TMP7]], 0
-; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 [[TMP10]], 1
+; COMMON-NEXT:    [[TMP9:%.*]] = insertvalue { double, i1 } [[TMP8]], i1 false, 1
 ; COMMON-NEXT:    [[SUCCESS:%.*]] = extractvalue { double, i1 } [[TMP9]], 1
 ; COMMON-NEXT:    [[TMP6]] = extractvalue { double, i1 } [[TMP9]], 0
 ; COMMON-NEXT:    br i1 [[SUCCESS]], label [[ATOMICRMW_END:%.*]], label [[ATOMICRMW_START]]

@@ -20,10 +20,13 @@
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/TargetInfo.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/VirtualFileSystem.h"
+#include "llvm/Target/TargetMachine.h"
 #include <memory>
 
 using namespace clang;
@@ -63,6 +66,8 @@ namespace {
   protected:
     std::unique_ptr<llvm::Module> M;
     std::unique_ptr<CodeGen::CodeGenModule> Builder;
+    std::unique_ptr<llvm::TargetLibraryInfoImpl> TLII;
+    const llvm::TargetMachine *TM;
 
   private:
     SmallVector<FunctionDecl *, 8> DeferredInlineMemberFuncDefs;
@@ -79,12 +84,12 @@ namespace {
                       IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS,
                       const HeaderSearchOptions &HSO,
                       const PreprocessorOptions &PPO, const CodeGenOptions &CGO,
-                      llvm::LLVMContext &C,
+                      llvm::LLVMContext &C, llvm::TargetMachine *TM,
                       CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(diags), Ctx(nullptr), FS(std::move(FS)), HeaderSearchOpts(HSO),
           PreprocessorOpts(PPO), CodeGenOpts(CGO), HandlingTopLevelDecls(0),
           CoverageInfo(CoverageInfo),
-          M(new llvm::Module(ExpandModuleName(ModuleName, CGO), C)) {
+          M(new llvm::Module(ExpandModuleName(ModuleName, CGO), C)), TM(TM) {
       C.setDiscardValueNames(CGO.DiscardValueNames);
     }
 
@@ -151,7 +156,8 @@ namespace {
     void Initialize(ASTContext &Context) override {
       Ctx = &Context;
 
-      M->setTargetTriple(Ctx->getTargetInfo().getTriple().getTriple());
+      llvm::Triple TargetTriple = Ctx->getTargetInfo().getTriple();
+      M->setTargetTriple(TargetTriple.getTriple());
       M->setDataLayout(Ctx->getTargetInfo().getDataLayoutString());
       const auto &SDKVersion = Ctx->getTargetInfo().getSDKVersion();
       if (!SDKVersion.empty())
@@ -161,9 +167,12 @@ namespace {
       if (auto TVSDKVersion =
               Ctx->getTargetInfo().getDarwinTargetVariantSDKVersion())
         M->setDarwinTargetVariantSDKVersion(*TVSDKVersion);
-      Builder.reset(new CodeGen::CodeGenModule(Context, FS, HeaderSearchOpts,
-                                               PreprocessorOpts, CodeGenOpts,
-                                               *M, Diags, CoverageInfo));
+
+      TLII.reset(
+          llvm::driver::createTLII(TargetTriple, CodeGenOpts.getVecLib()));
+      Builder.reset(new CodeGen::CodeGenModule(
+          Context, FS, HeaderSearchOpts, PreprocessorOpts, CodeGenOpts, *M,
+          Diags, *TLII.get(), TM, CoverageInfo));
 
       for (auto &&Lib : CodeGenOpts.DependentLibraries)
         Builder->AddDependentLib(Lib);
@@ -366,8 +375,9 @@ clang::CreateLLVMCodeGen(DiagnosticsEngine &Diags, llvm::StringRef ModuleName,
                          const HeaderSearchOptions &HeaderSearchOpts,
                          const PreprocessorOptions &PreprocessorOpts,
                          const CodeGenOptions &CGO, llvm::LLVMContext &C,
+                         llvm::TargetMachine *TM,
                          CoverageSourceInfo *CoverageInfo) {
   return new CodeGeneratorImpl(Diags, ModuleName, std::move(FS),
-                               HeaderSearchOpts, PreprocessorOpts, CGO, C,
+                               HeaderSearchOpts, PreprocessorOpts, CGO, C, TM,
                                CoverageInfo);
 }
