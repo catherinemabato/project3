@@ -4777,6 +4777,6 @@ def ArithmeticFence : LangBuiltin<"ALL_LANGUAGES"> {
 
 def GetCountedBy : Builtin {
   let Spellings = ["__builtin_get_counted_by"];
-  let Attributes = [NoThrow];
-  let Prototype = "size_t*(void*)";
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "int(...)";
 }
