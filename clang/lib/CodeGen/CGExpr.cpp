@@ -1134,7 +1134,7 @@ llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
     return nullptr;
 
   Indices.push_back(Builder.getInt32(0));
-  return Builder.CreateInBoundsGEP(
+  return Builder.CreateGEP(
       ConvertType(QualType(RD->getTypeForDecl(), 0)), Res,
       RecIndicesTy(llvm::reverse(Indices)), "..counted_by.gep");
 }
