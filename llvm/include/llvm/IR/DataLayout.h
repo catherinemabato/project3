@@ -138,10 +138,6 @@ private:
   Align StructABIAlignment = Align::Constant<1>();
   Align StructPrefAlignment = Align::Constant<8>();
 
-  // Struct type ABI and preferred alignments. The default spec is "a:8:64".
-  Align StructABIAlignment = Align::Constant<1>();
-  Align StructPrefAlignment = Align::Constant<8>();
-
   // The StructType -> StructLayout map.
   mutable void *LayoutMap = nullptr;
 
