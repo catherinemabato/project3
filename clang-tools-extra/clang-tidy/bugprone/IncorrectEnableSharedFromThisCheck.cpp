@@ -31,7 +31,7 @@ void IncorrectEnableSharedFromThisCheck::check(
 
   public:
     explicit Visitor(IncorrectEnableSharedFromThisCheck &Check)
-        : Check(Check), EnableSharedClassSet(EnableSharedClassSet) {}
+        : Check(Check) {}
 
     bool VisitCXXRecordDecl(CXXRecordDecl *RDecl) {
       for (const auto &Base : RDecl->bases()) {
@@ -42,6 +42,7 @@ void IncorrectEnableSharedFromThisCheck::check(
         if (BaseType && BaseType->getQualifiedNameAsString() ==
                             "std::enable_shared_from_this") {
           EnableSharedClassSet.insert(RDecl->getCanonicalDecl());
+          return true;
         }
       }
       return true;

@@ -1,8 +1,10 @@
-// RUN: %check_clang_tidy %s bugprone-incorrect-enable-shared-from-this %t -- --
+// RUN: %check_clang_tidy -std=c++11 %s bugprone-incorrect-enable-shared-from-this %t
 
+// NOLINTBEGIN
 namespace std {
     template <typename T> class enable_shared_from_this {};
 } //namespace std
+// NOLINTEND
 
 class BadClassExample : std::enable_shared_from_this<BadClassExample> {};
 // CHECK-MESSAGES: :[[@LINE-1]]:7: warning: inheritance from std::enable_shared_from_this should be public inheritance, otherwise the internal weak_ptr won't be initialized [bugprone-incorrect-enable-shared-from-this]
