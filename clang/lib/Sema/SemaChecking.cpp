@@ -5540,8 +5540,9 @@ bool Sema::BuiltinGetCountedBy(CallExpr *TheCall) {
   TheCall->setType(Context.getPointerType(Context.getSizeType()));
 
   if (const MemberExpr *ME = dyn_cast_if_present<MemberExpr>(Arg);
-      ME && ME->isFlexibleArrayMemberLike(Context,
-                                          getLangOpts().getStrictFlexArraysLevel()) &&
+      ME &&
+      ME->isFlexibleArrayMemberLike(Context,
+                                    getLangOpts().getStrictFlexArraysLevel()) &&
       ME->getMemberDecl()->getType()->isCountAttributedType()) {
     if (const FieldDecl *FAMDecl = dyn_cast<FieldDecl>(ME->getMemberDecl()))
       if (const FieldDecl *CountFD = FAMDecl->findCountedByField())
