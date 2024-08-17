@@ -797,9 +797,11 @@ def main():
         coverage_files, modified_lines
     )  # Report covered and uncovered source code lines.
 
-    # Remove the default.profraw file if it exists in root directory
+    # Remove the default.profraw file if it exists in the root of llvm-project
+    parent_dir = os.path.dirname(os.getcwd())
+    default_profraw_path = os.path.join(parent_dir, "default.profraw")
     try:
-        os.remove("default.profraw")
+        os.remove(default_profraw_path)
     except FileNotFoundError:
         pass
 
