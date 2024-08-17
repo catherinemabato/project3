@@ -10,15 +10,21 @@
 
 """
 code-coverage git integration
-============================
-This file provides a code-coverage integration for git. Put it in your
-llvm-project root directory and ensure that it is executable. Code
-coverage information will be provided for the last commit/HEAD by
-runing the below command.
+=============================
+This file provides a based based code-coverage integration for Git.
+Please put it in your llvm-project root directory and ensure it is
+executable (by running chmod +x git-check-coverage).
+Code coverage information will be provided for the last commit/s
+by running the below command.
+
 Example uses -
-          git check-coverage -b build bin/opt llvm/test
-Here b is build directory (optional, default is build).
-Next we have binray, and then test suite path.
+git check-coverage -b build bin/opt llvm/test
+
+Here b is the build directory (optional, default is build).
+Next, we have a binary name, and then a test suite path, both are mandatory arguments.
+Additionally, you can specify two more optional arguments -
+Number of commits if the patch consists of many commits by -n/--num-commits arg.
+A separate instrumentated build directory by -i/--instrumented-build-dir arg.
 """
 
 import argparse
@@ -46,57 +52,67 @@ def custom_print(*args):
     logging.info(message)  # Write to the log file
 
 
-def create_patch_from_last_commit(output_path):
-    """Create a patch file from the last commit in the Git repository."""
+def create_patch_from_last_commits(output_path, num_commits):
+    """Create a patch file from the last `num_commits` commits."""
 
     try:
-        # Create the patch from the last commit
-        patch_cmd = ["git", "format-patch", "-1", "--stdout"]
-        patch_output = subprocess.check_output(patch_cmd).decode("utf-8", "ignore")
+        # Generate the diff from the last `num_commits` commits
+        diff_cmd = ["git", "diff", f"HEAD~{num_commits}", "HEAD"]
+        diff_output = subprocess.check_output(diff_cmd).decode("utf-8", "ignore")
 
-        # Write the patch to the output file in binary mode
+        # Write the diff to the output file in binary mode
         with open(output_path, "wb") as patch_file:
-            patch_file.write(patch_output.encode("utf-8"))
+            patch_file.write(diff_output.encode("utf-8"))
 
-        custom_print("Patch file '{}' created successfully.".format(output_path))
+        custom_print(f"Patch file '{output_path}' created successfully.")
         custom_print("")
 
     except subprocess.CalledProcessError as e:
-        print("Error while creating the patch from the last commit:", e)
+        print("Error while creating the patch from the last commits:", e)
         sys.exit(1)
 
 
 def extract_source_files_from_patch(patch_path):
-    """Read the patch file and extract the names of .cpp and .h files that
+    """Read the patch file and extract the names of source and test files that
     have been modified or added in the patch."""
 
     try:
         source_files = []
+        test_files = []
         with open(patch_path, "rb") as patch_file:
             patch_diff = patch_file.read().decode("utf-8", "ignore")
 
-        # Use regular expression to find .cpp|c|h|hpp|hxx|cxx|inc|cppm files in the patch
-        source_file_matches = re.findall(
-            r"\+{3} b/(\S+\.(?:cpp|c|h|hpp|hxx|cxx|inc|cppm))", patch_diff
-        )
+        # Use regular expression to find all files in the patch
+        file_matches = re.findall(r"\+{3} b/(\S+)", patch_diff)
 
-        # Filter out files with "test" or "unittests" in their directory path
-        source_files = [file for file in source_file_matches if "test" not in file and "unittests" not in file]
+        # Separate source files from test files based on file content
+        for file in file_matches:
+            # Assuming test files contain the word "test" or "unittest" in their content
+            if any(keyword in file.lower() for keyword in ["test", "unittest"]):
+                test_files.append(file)
+            else:
+                source_files.append(file)
 
         if not source_files:
             print("No source files found in the patch. Exiting.")
-            sys.exit(0)
+            sys.exit(1)
 
-        print()
-        print("Source files in the patch (excluding test files):")
+        if not test_files:
+            print("No test files found in the patch. Exiting.")
+            sys.exit(1)
+
+        print("\nSource files in the patch:")
         for source_file in source_files:
             print(source_file)
-        print("")
+
+        print("\nTest files in the patch:")
+        for test_file in test_files:
+            print(test_file)
 
         return source_files
 
     except Exception as ex:
-        print("Error while extracting .cpp files from patch:", ex)
+        print("Error while extracting files from patch:", ex)
         sys.exit(1)
 
 
@@ -186,8 +202,8 @@ def build_llvm(build_dir):
         custom_print("")
 
         # clean the build directory
-        clean_command = ["ninja", "clean"]
-        subprocess.run(clean_command, check=True)
+        # clean_command = ["ninja", "clean"]
+        # subprocess.run(clean_command, check=True)
 
         # Run the cmake command to re-configure the LLVM build for coverage instrumentation
         cmake_command = [
@@ -380,6 +396,11 @@ def run_modified_unit_tests(build_dir, patch_path, tests):
                         f"Running modified test cases with Ninja target {last_directory_with_tests}:"
                     )
                     subprocess.check_call(
+                        # FIXME: We should have a filter here for the unit test part that change or modified.
+                        # But currently consistency is not there in the names of writing Unit tests.
+                        # For example llvm/unittests/Remarks/marksStrTabParsingTest.cpp have tests with name
+                        # RemarksStrTab not RemarksStrTabTest. Similarly llvm/unittests/IR/DebugInfoTest.cpp have some tests with name
+                        # MetadataTest which can not be filter with filename DebugInfoTest. So currently we run all the unit tests as precaution.
                         # [modified_test_path, f"--gtest_filter={file_name}*"]
                         [modified_test_path]
                     )
@@ -550,32 +571,41 @@ def print_common_uncovered_lines(cpp_file, uncovered_lines, modified_lines):
 
 
 def report_covered_and_uncovered_lines(coverage_files, modified_lines):
-    """Report Covered and uncovered source code lines."""
-
+    """Report covered and uncovered source code lines."""
     try:
-        # Initialize an empty dictionary to store uncovered lines for each file
         common_uncovered_line_numbers_for_each_file = {}
 
-        # Iterate through each cpp_file and its associated coverage file in coverage_files
+        # Iterate through each C++ file and its associated coverage files
         for cpp_file, coverage_files_list in coverage_files.items():
-            for coverage_file in coverage_files_list:
-                # Print the current coverage file being processed
-                custom_print(f"Coverage File: build/{coverage_file}")
+            all_uncovered_lines = set()
+            all_covered_lines = set()
 
+            # Process each coverage file for the current C++ file
+            for coverage_file in coverage_files_list:
+                custom_print(f"Coverage File: build/{coverage_file}")
                 covered_line_numbers, uncovered_line_numbers = read_coverage_file(
                     coverage_file
                 )
 
-                common_uncovered_line_numbers_for_each_file[
-                    cpp_file
-                ] = uncovered_line_numbers
-                for file, lines in modified_lines.items():
-                    if os.path.relpath(file)[2:] == cpp_file:
-                        print_coverage_details(
-                            file, lines, uncovered_line_numbers, covered_line_numbers
-                        )
+                # Aggregate the uncovered and covered lines
+                all_uncovered_lines |= uncovered_line_numbers
+                all_covered_lines |= covered_line_numbers
 
-        # Print the final uncovered lines for each file
+            # Calculate the effective uncovered lines by subtracting covered lines from uncovered lines
+            effective_uncovered_lines = all_uncovered_lines - all_covered_lines
+            common_uncovered_line_numbers_for_each_file[
+                cpp_file
+            ] = effective_uncovered_lines
+
+            # Print coverage details for each modified file that matches cpp_file
+            for file, lines in modified_lines.items():
+                if os.path.relpath(file)[2:] == cpp_file:
+                    print_coverage_details(
+                        file, lines, effective_uncovered_lines, all_covered_lines
+                    )
+            custom_print("")
+
+        # Print common uncovered lines for each cpp_file
         for (
             cpp_file,
             uncovered_lines,
@@ -583,7 +613,6 @@ def report_covered_and_uncovered_lines(coverage_files, modified_lines):
             print_common_uncovered_lines(cpp_file, uncovered_lines, modified_lines)
 
     except Exception as ex:
-        # Handle exceptions, print an error message, and exit with status 1
         custom_print("Error while reporting covered and uncovered lines:", ex)
         sys.exit(1)
 
@@ -666,6 +695,14 @@ def parse_args():
         "-i", "--instrumented-build-dir", dest="instrumented_build_dir", default=None
     )
 
+    # Add optional argument "-n" or "--num-commits" to specify the number of commits for the patch.
+    parser.add_argument(
+        "-n",
+        "--num-commits",
+        dest="num_commits",
+        default=1,
+    )
+
     parser.add_argument("binary")
 
     # Add positional argument "test_path" which is the path to test cases.
@@ -673,18 +710,25 @@ def parse_args():
 
     args = parser.parse_args()
 
-    return (args.build_dir, args.instrumented_build_dir, args.binary, args.test_path)
+    return (
+        args.build_dir,
+        args.instrumented_build_dir,
+        args.num_commits,
+        args.binary,
+        args.test_path,
+    )
 
 
 def main():
     (
         build_dir,
         instrumented_build_dir,
+        num_commits,
         binary,
         test_paths,
     ) = (
         parse_args()
-    )  # Parse command-line arguments to get build directory, test paths and binary.
+    )  # Parse command-line arguments to get build directory, binary and test paths.
 
     configure_logging(build_dir)
 
@@ -692,9 +736,9 @@ def main():
         build_dir, "patch.diff"
     )  # Define the path to the patch file (output).
 
-    create_patch_from_last_commit(
-        patch_path
-    )  # Create a patch file from the last commit.
+    create_patch_from_last_commits(
+        patch_path, num_commits
+    )  # Create a patch file from the last commits.
 
     llvm_lit_path = os.path.join(
         build_dir, "bin/llvm-lit"
@@ -725,7 +769,6 @@ def main():
             cleaned_line_content = line_content.rstrip("\n")
             custom_print(f"Line {line_number}: {cleaned_line_content}")
         custom_print("")
-    custom_print("")
 
     if not instrumented_build_dir:
         # If instrumented_build_dir is not provided, build LLVM with
@@ -748,12 +791,17 @@ def main():
     for cpp_file, cov_files in coverage_files.items():
         for cov_file in cov_files:
             custom_print(f"build/{cov_file}")
+    custom_print("")
 
     report_covered_and_uncovered_lines(
         coverage_files, modified_lines
     )  # Report covered and uncovered source code lines.
 
-    os.remove("default.profraw")
+    # Remove the default.profraw file if it exists in root directory
+    try:
+        os.remove("default.profraw")
+    except FileNotFoundError:
+        pass
 
 
 if __name__ == "__main__":
