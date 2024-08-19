@@ -37,7 +37,7 @@ void test_lambda2() {
 [[riscv::vls_cc]] int var_vls; // expected-warning {{'vls_cc' only applies to function types; type here is 'int'}}
 
 [[riscv::vls_cc]] void func_vls();
-[[riscv::vls_cc(1)]] void func_invalid_vls(); // expected-error {{argument value 1 is outside the valid range [128, 65536]}} expected-warning {{'vls_cc' only applies to function types; type here is 'void ()'}}
+[[riscv::vls_cc(1)]] void func_invalid_vls(); // expected-error {{argument value 1 is outside the valid range [32, 65536]}} expected-warning {{'vls_cc' only applies to function types; type here is 'void ()'}}
 [[riscv::vls_cc(129)]] void func_invalid_vls(); // expected-error {{argument should be a power of 2}} expected-warning {{'vls_cc' only applies to function types; type here is 'void ()'}}
 
 void test_no_attribute_vls(int); // expected-note {{previous declaration is here}}

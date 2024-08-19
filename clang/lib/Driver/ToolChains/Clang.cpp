@@ -2211,7 +2211,7 @@ void Clang::AddRISCVTargetArgs(const ArgList &Args,
     StringRef ABIVLenStr = A->getValue();
     unsigned ABIVLen;
     const Driver &D = getToolChain().getDriver();
-    if (ABIVLenStr.getAsInteger(10, ABIVLen) || ABIVLen < 128 ||
+    if (ABIVLenStr.getAsInteger(10, ABIVLen) || ABIVLen < 32 ||
         ABIVLen > 65536 || !llvm::isPowerOf2_64(ABIVLen)) {
       D.Diag(diag::err_drv_invalid_value)
           << A->getOption().getName() << ABIVLenStr;

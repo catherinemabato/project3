@@ -4774,9 +4774,9 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (AL.getNumArgs() &&
         !S.checkUInt32Argument(AL, AL.getArgAsExpr(0), VectorLength))
       return;
-    if (VectorLength < 128 || VectorLength > 65536) {
+    if (VectorLength < 32 || VectorLength > 65536) {
       S.Diag(AL.getLoc(), diag::err_argument_invalid_range)
-          << VectorLength << 128 << 65536;
+          << VectorLength << 32 << 65536;
       return;
     }
     if (!llvm::isPowerOf2_64(VectorLength)) {
