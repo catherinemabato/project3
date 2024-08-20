@@ -3307,8 +3307,7 @@ public:
 
   llvm::Value *GetCountedByFieldExprGEP(const Expr *Base,
                                         const FieldDecl *FAMDecl,
-                                        const FieldDecl *CountDecl,
-                                        bool isArrow);
+                                        const FieldDecl *CountDecl);
 
   /// Build an expression accessing the "counted_by" field.
   llvm::Value *EmitLoadOfCountedByField(const Expr *Base,

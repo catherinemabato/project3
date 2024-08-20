@@ -3583,8 +3583,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
           ME->getMemberDecl()->getType()->isCountAttributedType()) {
         const FieldDecl *FAMDecl = dyn_cast<FieldDecl>(ME->getMemberDecl());
         if (const FieldDecl *CountFD = FAMDecl->findCountedByField())
-          Result = GetCountedByFieldExprGEP(ME, FAMDecl, CountFD,
-                                            ME->isArrow());
+          Result = GetCountedByFieldExprGEP(ME, FAMDecl, CountFD);
       }
     }
 

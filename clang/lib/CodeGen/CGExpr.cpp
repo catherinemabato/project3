@@ -1102,8 +1102,7 @@ static bool getGEPIndicesToField(CodeGenFunction &CGF, const RecordDecl *RD,
 }
 
 llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
-    const Expr *Base, const FieldDecl *FAMDecl, const FieldDecl *CountDecl,
-    bool isArrow) {
+    const Expr *Base, const FieldDecl *FAMDecl, const FieldDecl *CountDecl) {
   const RecordDecl *RD = CountDecl->getParent()->getOuterLexicalRecordContext();
 
   // Find the base struct expr (i.e. p in p->a.b.c.d).
@@ -1114,9 +1113,8 @@ llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
   llvm::Value *Res = nullptr;
   if (const auto *DRE = dyn_cast<DeclRefExpr>(StructBase)) {
     Res = EmitDeclRefLValue(DRE).getPointer(*this);
-    if (isArrow)
-      Res = Builder.CreateAlignedLoad(ConvertType(DRE->getType()), Res,
-                                      getPointerAlign(), "dre.load");
+    Res = Builder.CreateAlignedLoad(ConvertType(DRE->getType()), Res,
+                                    getPointerAlign(), "dre.load");
   } else if (const MemberExpr *ME = dyn_cast<MemberExpr>(StructBase)) {
     LValue LV = EmitMemberExpr(ME);
     Address Addr = LV.getAddress();
@@ -1135,9 +1133,7 @@ llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
   if (Indices.empty())
     return nullptr;
 
-  if (isArrow)
-    Indices.push_back(Builder.getInt32(0));
-
+  Indices.push_back(Builder.getInt32(0));
   return Builder.CreateInBoundsGEP(
       ConvertType(QualType(RD->getTypeForDecl(), 0)), Res,
       RecIndicesTy(llvm::reverse(Indices)), "..counted_by.gep");
@@ -1153,8 +1149,7 @@ llvm::Value *CodeGenFunction::GetCountedByFieldExprGEP(
 /// - \p CountDecl: must be within the same non-anonymous struct as \p FAMDecl.
 llvm::Value *CodeGenFunction::EmitLoadOfCountedByField(
     const Expr *Base, const FieldDecl *FAMDecl, const FieldDecl *CountDecl) {
-  bool isArrow = isa<MemberExpr>(Base) && cast<MemberExpr>(Base)->isArrow();
-  if (llvm::Value *GEP = GetCountedByFieldExprGEP(Base, FAMDecl, CountDecl, isArrow))
+  if (llvm::Value *GEP = GetCountedByFieldExprGEP(Base, FAMDecl, CountDecl))
     return Builder.CreateAlignedLoad(ConvertType(CountDecl->getType()), GEP,
                                      getIntAlign(), "..counted_by.load");
   return nullptr;
