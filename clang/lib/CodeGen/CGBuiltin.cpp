@@ -3586,9 +3586,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
         if (FieldDecl *CountFD = FAMDecl->findCountedByField()) {
           QualType CountTy = CountFD->getType();
 
-          MemberExpr *NewME = MemberExpr::CreateImplicit(
-              Ctx, ME->getBase(), ME->isArrow(), CountFD, CountTy, VK_PRValue,
-              OK_Ordinary);
+          MemberExpr *NewME = MemberExpr::Create(
+              Ctx, ME->getBase(), ME->isArrow(), ME->getOperatorLoc(),
+              ME->getQualifierLoc(), ME->getTemplateKeywordLoc(), CountFD,
+              ME->getFoundDecl(),
+              DeclarationNameInfo(CountFD->getDeclName(),
+                                  CountFD->getLocation()),
+              nullptr, CountTy, VK_PRValue, OK_Ordinary, ME->isNonOdrUse());
           Result = EmitScalarExpr(UnaryOperator::Create(
               Ctx, NewME, UO_AddrOf, Ctx.getPointerType(CountTy), VK_LValue,
               OK_Ordinary, SourceLocation(), false, FPOptionsOverride()));
