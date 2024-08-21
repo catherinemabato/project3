@@ -15837,6 +15837,7 @@ void Sema::DefineImplicitLambdaToFunctionPointerConversion(
   assert(FunctionRef && "Can't refer to __invoke function?");
   Stmt *Return = BuildReturnStmt(Conv->getLocation(), FunctionRef).get();
   Conv->setBody(CompoundStmt::Create(Context, Return, FPOptionsOverride(),
+                                     AtomicOptionsOverride(),
                                      Conv->getLocation(), Conv->getLocation()));
   Conv->markUsed(Context);
   Conv->setReferenced();
@@ -15889,6 +15890,7 @@ void Sema::DefineImplicitLambdaToBlockPointerConversion(
   // Set the body of the conversion function.
   Stmt *ReturnS = Return.get();
   Conv->setBody(CompoundStmt::Create(Context, ReturnS, FPOptionsOverride(),
+                                     AtomicOptionsOverride(),
                                      Conv->getLocation(), Conv->getLocation()));
   Conv->markUsed(Context);
 
