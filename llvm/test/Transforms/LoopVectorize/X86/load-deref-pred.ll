@@ -2957,7 +2957,7 @@ loop_exit:
 }
 
 define i32 @test_non_unit_stride_off_by_four_bytes(i64 %len, ptr %test_base) {
-; CHECK-LABEL: @neg_test_non_unit_stride_off_by_four_bytes(
+; CHECK-LABEL: @test_non_unit_stride_off_by_four_bytes(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[ALLOCA:%.*]] = alloca [103 x i32], align 4
 ; CHECK-NEXT:    call void @init(ptr [[ALLOCA]])

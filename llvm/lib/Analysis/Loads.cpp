@@ -281,10 +281,10 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
     return false;
 
   const SCEV *EltSizeSCEV;
-  std::pair<const SCEV *, const SCEV *> Range = getStartAndEndForAccess(
+  const auto &[AccessStart, AccessEnd] = getStartAndEndForAccess(
       L, Ptr, LI->getType(), MaxBECount, &SE, EltSizeSCEV, nullptr);
-  if (isa<SCEVCouldNotCompute>(Range.first) ||
-      isa<SCEVCouldNotCompute>(Range.second))
+  if (isa<SCEVCouldNotCompute>(AccessStart) ||
+      isa<SCEVCouldNotCompute>(AccessEnd))
     return false;
 
   // For the moment, restrict ourselves to the case where the access size is a
@@ -300,12 +300,8 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
     return false;
 
   // Try to get the access size.
-  const SCEV *PtrDiff = SE.getMinusSCEV(Range.second, Range.first);
-  APInt MaxPtrDiff;
-  if (isa<SCEVConstant>(PtrDiff))
-    MaxPtrDiff = cast<SCEVConstant>(PtrDiff)->getAPInt();
-  else
-    MaxPtrDiff = SE.getUnsignedRangeMax(PtrDiff);
+  const SCEV *PtrDiff = SE.getMinusSCEV(AccessEnd, AccessStart);
+  APInt MaxPtrDiff = SE.getUnsignedRangeMax(PtrDiff);
 
   // If the (max) pointer difference is > 32 bits then it's unlikely to be
   // dereferenceable.
@@ -314,10 +310,10 @@ bool llvm::isDereferenceableAndAlignedInLoop(LoadInst *LI, Loop *L,
 
   Value *Base = nullptr;
   APInt AccessSize;
-  if (const SCEVUnknown *NewBase = dyn_cast<SCEVUnknown>(Range.first)) {
+  if (const SCEVUnknown *NewBase = dyn_cast<SCEVUnknown>(AccessStart)) {
     Base = NewBase->getValue();
     AccessSize = MaxPtrDiff;
-  } else if (auto *MinAdd = dyn_cast<SCEVAddExpr>(Range.first)) {
+  } else if (auto *MinAdd = dyn_cast<SCEVAddExpr>(AccessStart)) {
     if (MinAdd->getNumOperands() != 2)
       return false;
 

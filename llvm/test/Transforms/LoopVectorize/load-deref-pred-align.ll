@@ -349,29 +349,29 @@ define void @test_rev_loops_deref_loads(ptr nocapture noundef writeonly %dest) {
 ; CHECK-NEXT:    [[TMP18:%.*]] = icmp eq i64 [[INDEX_NEXT]], 1024
 ; CHECK-NEXT:    br i1 [[TMP18]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP8:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    br i1 true, label [[FOR_COND_CLEANUP:%.*]], label [[SCALAR_PH]]
+; CHECK-NEXT:    br i1 true, label [[EXIT:%.*]], label [[SCALAR_PH]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ -1, [[MIDDLE_BLOCK]] ], [ 1023, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_CMP]], i64 0, i64 [[INDVARS_IV]]
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_CMP]], i64 0, i64 [[IV]]
 ; CHECK-NEXT:    [[TMP19:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[CMP3_NOT:%.*]] = icmp eq i32 [[TMP19]], 3
 ; CHECK-NEXT:    br i1 [[CMP3_NOT]], label [[FOR_INC]], label [[IF_THEN:%.*]]
 ; CHECK:       if.then:
-; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_SRC]], i64 0, i64 [[INDVARS_IV]]
+; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_SRC]], i64 0, i64 [[IV]]
 ; CHECK-NEXT:    [[TMP20:%.*]] = load i32, ptr [[ARRAYIDX5]], align 4
 ; CHECK-NEXT:    [[MUL:%.*]] = shl nsw i32 [[TMP20]], 2
-; CHECK-NEXT:    [[ARRAYIDX7:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_DEST]], i64 0, i64 [[INDVARS_IV]]
+; CHECK-NEXT:    [[ARRAYIDX7:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_DEST]], i64 0, i64 [[IV]]
 ; CHECK-NEXT:    store i32 [[MUL]], ptr [[ARRAYIDX7]], align 4
 ; CHECK-NEXT:    br label [[FOR_INC]]
 ; CHECK:       for.inc:
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], -1
-; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[INDVARS_IV]], 0
-; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[FOR_COND_CLEANUP]], label [[FOR_BODY]], !llvm.loop [[LOOP9:![0-9]+]]
-; CHECK:       for.cond.cleanup:
-; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) [[DEST:%.*]], ptr noundef nonnull align 4 dereferenceable(1024) [[LOCAL_DEST]], i64 1024, i1 false)
+; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], -1
+; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[IV]], 0
+; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[EXIT]], label [[FOR_BODY]], !llvm.loop [[LOOP9:![0-9]+]]
+; CHECK:       exit:
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr [[DEST:%.*]], ptr [[LOCAL_DEST]], i64 1024, i1 false)
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -383,27 +383,27 @@ entry:
   br label %for.body
 
 for.body:
-  %indvars.iv = phi i64 [ 1023, %entry ], [ %indvars.iv.next, %for.inc ]
-  %arrayidx = getelementptr inbounds [1024 x i32], ptr %local_cmp, i64 0, i64 %indvars.iv
+  %iv = phi i64 [ 1023, %entry ], [ %iv.next, %for.inc ]
+  %arrayidx = getelementptr inbounds [1024 x i32], ptr %local_cmp, i64 0, i64 %iv
   %0 = load i32, ptr %arrayidx, align 4
   %cmp3.not = icmp eq i32 %0, 3
   br i1 %cmp3.not, label %for.inc, label %if.then
 
 if.then:
-  %arrayidx5 = getelementptr inbounds [1024 x i32], ptr %local_src, i64 0, i64 %indvars.iv
+  %arrayidx5 = getelementptr inbounds [1024 x i32], ptr %local_src, i64 0, i64 %iv
   %1 = load i32, ptr %arrayidx5, align 4
   %mul = shl nsw i32 %1, 2
-  %arrayidx7 = getelementptr inbounds [1024 x i32], ptr %local_dest, i64 0, i64 %indvars.iv
+  %arrayidx7 = getelementptr inbounds [1024 x i32], ptr %local_dest, i64 0, i64 %iv
   store i32 %mul, ptr %arrayidx7, align 4
   br label %for.inc
 
 for.inc:
-  %indvars.iv.next = add nsw i64 %indvars.iv, -1
-  %cmp2.not = icmp eq i64 %indvars.iv, 0
-  br i1 %cmp2.not, label %for.cond.cleanup, label %for.body
+  %iv.next = add nsw i64 %iv, -1
+  %cmp2.not = icmp eq i64 %iv, 0
+  br i1 %cmp2.not, label %exit, label %for.body
 
-for.cond.cleanup:
-  call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) %dest, ptr noundef nonnull align 4 dereferenceable(1024) %local_dest, i64 1024, i1 false)
+exit:
+  call void @llvm.memcpy.p0.p0.i64(ptr %dest, ptr %local_dest, i64 1024, i1 false)
   ret void
 }
 
@@ -462,13 +462,13 @@ define void @test_rev_loops_non_deref_loads(ptr nocapture noundef writeonly %des
 ; CHECK-NEXT:    [[TMP21:%.*]] = icmp eq i64 [[INDEX_NEXT]], 1024
 ; CHECK-NEXT:    br i1 [[TMP21]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP10:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    br i1 true, label [[FOR_COND_CLEANUP:%.*]], label [[SCALAR_PH]]
+; CHECK-NEXT:    br i1 true, label [[EXIT:%.*]], label [[SCALAR_PH]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ -1, [[MIDDLE_BLOCK]] ], [ 1023, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
-; CHECK-NEXT:    [[OFF:%.*]] = add i64 [[INDVARS_IV]], -1
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
+; CHECK-NEXT:    [[OFF:%.*]] = add i64 [[IV]], -1
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_CMP]], i64 0, i64 [[OFF]]
 ; CHECK-NEXT:    [[TMP22:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[CMP3_NOT:%.*]] = icmp eq i32 [[TMP22]], 3
@@ -481,11 +481,11 @@ define void @test_rev_loops_non_deref_loads(ptr nocapture noundef writeonly %des
 ; CHECK-NEXT:    store i32 [[MUL]], ptr [[ARRAYIDX7]], align 4
 ; CHECK-NEXT:    br label [[FOR_INC]]
 ; CHECK:       for.inc:
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], -1
-; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[INDVARS_IV]], 0
-; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[FOR_COND_CLEANUP]], label [[FOR_BODY]], !llvm.loop [[LOOP11:![0-9]+]]
-; CHECK:       for.cond.cleanup:
-; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) [[DEST:%.*]], ptr noundef nonnull align 4 dereferenceable(1024) [[LOCAL_DEST]], i64 1024, i1 false)
+; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], -1
+; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[IV]], 0
+; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[EXIT]], label [[FOR_BODY]], !llvm.loop [[LOOP11:![0-9]+]]
+; CHECK:       exit:
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr [[DEST:%.*]], ptr [[LOCAL_DEST]], i64 1024, i1 false)
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -497,8 +497,8 @@ entry:
   br label %for.body
 
 for.body:
-  %indvars.iv = phi i64 [ 1023, %entry ], [ %indvars.iv.next, %for.inc ]
-  %off = add i64 %indvars.iv, -1
+  %iv = phi i64 [ 1023, %entry ], [ %iv.next, %for.inc ]
+  %off = add i64 %iv, -1
   %arrayidx = getelementptr inbounds [1024 x i32], ptr %local_cmp, i64 0, i64 %off
   %0 = load i32, ptr %arrayidx, align 4
   %cmp3.not = icmp eq i32 %0, 3
@@ -513,12 +513,12 @@ if.then:
   br label %for.inc
 
 for.inc:
-  %indvars.iv.next = add nsw i64 %indvars.iv, -1
-  %cmp2.not = icmp eq i64 %indvars.iv, 0
-  br i1 %cmp2.not, label %for.cond.cleanup, label %for.body
+  %iv.next = add nsw i64 %iv, -1
+  %cmp2.not = icmp eq i64 %iv, 0
+  br i1 %cmp2.not, label %exit, label %for.body
 
-for.cond.cleanup:
-  call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) %dest, ptr noundef nonnull align 4 dereferenceable(1024) %local_dest, i64 1024, i1 false)
+exit:
+  call void @llvm.memcpy.p0.p0.i64(ptr %dest, ptr %local_dest, i64 1024, i1 false)
   ret void
 }
 
@@ -666,30 +666,30 @@ define void @test_rev_loops_strided_deref_loads(ptr nocapture noundef writeonly 
 ; CHECK-NEXT:    [[TMP20:%.*]] = icmp eq i64 [[INDEX_NEXT]], 512
 ; CHECK-NEXT:    br i1 [[TMP20]], label [[MIDDLE_BLOCK:%.*]], label [[VECTOR_BODY]], !llvm.loop [[LOOP14:![0-9]+]]
 ; CHECK:       middle.block:
-; CHECK-NEXT:    br i1 true, label [[FOR_COND_CLEANUP:%.*]], label [[SCALAR_PH]]
+; CHECK-NEXT:    br i1 true, label [[EXIT:%.*]], label [[SCALAR_PH]]
 ; CHECK:       scalar.ph:
 ; CHECK-NEXT:    [[BC_RESUME_VAL:%.*]] = phi i64 [ -1, [[MIDDLE_BLOCK]] ], [ 511, [[ENTRY:%.*]] ]
 ; CHECK-NEXT:    br label [[FOR_BODY:%.*]]
 ; CHECK:       for.body:
-; CHECK-NEXT:    [[INDVARS_IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[INDVARS_IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
-; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_CMP]], i64 0, i64 [[INDVARS_IV]]
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ [[BC_RESUME_VAL]], [[SCALAR_PH]] ], [ [[IV_NEXT:%.*]], [[FOR_INC:%.*]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_CMP]], i64 0, i64 [[IV]]
 ; CHECK-NEXT:    [[TMP21:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[CMP3_NOT:%.*]] = icmp eq i32 [[TMP21]], 3
 ; CHECK-NEXT:    br i1 [[CMP3_NOT]], label [[FOR_INC]], label [[IF_THEN:%.*]]
 ; CHECK:       if.then:
-; CHECK-NEXT:    [[INDVARS_IV_STRIDED:%.*]] = mul i64 [[INDVARS_IV]], 2
-; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_SRC]], i64 0, i64 [[INDVARS_IV_STRIDED]]
+; CHECK-NEXT:    [[IV_STRIDED:%.*]] = mul i64 [[IV]], 2
+; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_SRC]], i64 0, i64 [[IV_STRIDED]]
 ; CHECK-NEXT:    [[TMP22:%.*]] = load i32, ptr [[ARRAYIDX5]], align 4
 ; CHECK-NEXT:    [[MUL:%.*]] = shl nsw i32 [[TMP22]], 2
-; CHECK-NEXT:    [[ARRAYIDX7:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_DEST]], i64 0, i64 [[INDVARS_IV]]
+; CHECK-NEXT:    [[ARRAYIDX7:%.*]] = getelementptr inbounds [1024 x i32], ptr [[LOCAL_DEST]], i64 0, i64 [[IV]]
 ; CHECK-NEXT:    store i32 [[MUL]], ptr [[ARRAYIDX7]], align 4
 ; CHECK-NEXT:    br label [[FOR_INC]]
 ; CHECK:       for.inc:
-; CHECK-NEXT:    [[INDVARS_IV_NEXT]] = add nsw i64 [[INDVARS_IV]], -1
-; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[INDVARS_IV]], 0
-; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[FOR_COND_CLEANUP]], label [[FOR_BODY]], !llvm.loop [[LOOP15:![0-9]+]]
-; CHECK:       for.cond.cleanup:
-; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) [[DEST:%.*]], ptr noundef nonnull align 4 dereferenceable(1024) [[LOCAL_DEST]], i64 1024, i1 false)
+; CHECK-NEXT:    [[IV_NEXT]] = add nsw i64 [[IV]], -1
+; CHECK-NEXT:    [[CMP2_NOT:%.*]] = icmp eq i64 [[IV]], 0
+; CHECK-NEXT:    br i1 [[CMP2_NOT]], label [[EXIT]], label [[FOR_BODY]], !llvm.loop [[LOOP15:![0-9]+]]
+; CHECK:       exit:
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr [[DEST:%.*]], ptr [[LOCAL_DEST]], i64 1024, i1 false)
 ; CHECK-NEXT:    ret void
 ;
 entry:
@@ -701,27 +701,27 @@ entry:
   br label %for.body
 
 for.body:
-  %indvars.iv = phi i64 [ 511, %entry ], [ %indvars.iv.next, %for.inc ]
-  %arrayidx = getelementptr inbounds [1024 x i32], ptr %local_cmp, i64 0, i64 %indvars.iv
+  %iv = phi i64 [ 511, %entry ], [ %iv.next, %for.inc ]
+  %arrayidx = getelementptr inbounds [1024 x i32], ptr %local_cmp, i64 0, i64 %iv
   %0 = load i32, ptr %arrayidx, align 4
   %cmp3.not = icmp eq i32 %0, 3
   br i1 %cmp3.not, label %for.inc, label %if.then
 
 if.then:
-  %indvars.iv.strided = mul i64 %indvars.iv, 2
-  %arrayidx5 = getelementptr inbounds [1024 x i32], ptr %local_src, i64 0, i64 %indvars.iv.strided
+  %iv.strided = mul i64 %iv, 2
+  %arrayidx5 = getelementptr inbounds [1024 x i32], ptr %local_src, i64 0, i64 %iv.strided
   %1 = load i32, ptr %arrayidx5, align 4
   %mul = shl nsw i32 %1, 2
-  %arrayidx7 = getelementptr inbounds [1024 x i32], ptr %local_dest, i64 0, i64 %indvars.iv
+  %arrayidx7 = getelementptr inbounds [1024 x i32], ptr %local_dest, i64 0, i64 %iv
   store i32 %mul, ptr %arrayidx7, align 4
   br label %for.inc
 
 for.inc:
-  %indvars.iv.next = add nsw i64 %indvars.iv, -1
-  %cmp2.not = icmp eq i64 %indvars.iv, 0
-  br i1 %cmp2.not, label %for.cond.cleanup, label %for.body
+  %iv.next = add nsw i64 %iv, -1
+  %cmp2.not = icmp eq i64 %iv, 0
+  br i1 %cmp2.not, label %exit, label %for.body
 
-for.cond.cleanup:
-  call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 4 dereferenceable(1024) %dest, ptr noundef nonnull align 4 dereferenceable(1024) %local_dest, i64 1024, i1 false)
+exit:
+  call void @llvm.memcpy.p0.p0.i64(ptr %dest, ptr %local_dest, i64 1024, i1 false)
   ret void
 }
