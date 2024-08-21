@@ -3567,23 +3567,32 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
     const Expr *Arg = E->getArg(0)->IgnoreParenImpCasts();
 
-    if (auto *UO = dyn_cast<UnaryOperator>(Arg);
+    if (const auto *UO = dyn_cast<UnaryOperator>(Arg);
         UO && UO->getOpcode() == UO_AddrOf) {
       Arg = UO->getSubExpr()->IgnoreParenImpCasts();
 
-      if (auto *ASE = dyn_cast<ArraySubscriptExpr>(Arg))
+      if (const auto *ASE = dyn_cast<ArraySubscriptExpr>(Arg))
         Arg = ASE->getBase()->IgnoreParenImpCasts();
     }
 
-    if (const MemberExpr *ME = dyn_cast_if_present<MemberExpr>(Arg)) {
+    if (const auto *ME = dyn_cast_if_present<MemberExpr>(Arg)) {
+      ASTContext &Ctx = getContext();
       bool IsFlexibleArrayMember = ME->isFlexibleArrayMemberLike(
-          getContext(), getLangOpts().getStrictFlexArraysLevel());
+          Ctx, getLangOpts().getStrictFlexArraysLevel());
 
-      if (!ME->HasSideEffects(getContext()) && IsFlexibleArrayMember &&
+      if (!ME->HasSideEffects(Ctx) && IsFlexibleArrayMember &&
           ME->getMemberDecl()->getType()->isCountAttributedType()) {
-        const FieldDecl *FAMDecl = dyn_cast<FieldDecl>(ME->getMemberDecl());
-        if (const FieldDecl *CountFD = FAMDecl->findCountedByField())
-          Result = GetCountedByFieldExprGEP(ME, FAMDecl, CountFD);
+        FieldDecl *FAMDecl = dyn_cast<FieldDecl>(ME->getMemberDecl());
+        if (FieldDecl *CountFD = FAMDecl->findCountedByField()) {
+          QualType CountTy = CountFD->getType();
+
+          MemberExpr *NewME = MemberExpr::CreateImplicit(
+              Ctx, ME->getBase(), ME->isArrow(), CountFD, CountTy, VK_PRValue,
+              OK_Ordinary);
+          Result = EmitScalarExpr(UnaryOperator::Create(
+              Ctx, NewME, UO_AddrOf, Ctx.getPointerType(CountTy), VK_LValue,
+              OK_Ordinary, SourceLocation(), false, FPOptionsOverride()));
+        }
       }
     }
 
