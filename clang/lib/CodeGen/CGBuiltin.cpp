@@ -3583,7 +3583,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
 
       if (!ME->HasSideEffects(Ctx) && IsFlexibleArrayMember &&
           ME->getMemberDecl()->getType()->isCountAttributedType()) {
-        FieldDecl *FAMDecl = dyn_cast<FieldDecl>(ME->getMemberDecl());
+        FieldDecl *FAMDecl = cast<FieldDecl>(ME->getMemberDecl());
         if (FieldDecl *CountFD = FAMDecl->findCountedByField()) {
           QualType CountTy = CountFD->getType();
           SmallVector<NamedDecl *, 2> PathToFD;
