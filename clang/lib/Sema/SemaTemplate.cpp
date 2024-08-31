@@ -3979,6 +3979,13 @@ DeclResult Sema::ActOnVarTemplateSpecialization(
              << IsPartialSpecialization;
   }
 
+  if (const auto *DSA = VarTemplate->getAttr<DiagnoseSpecializationsAttr>()) {
+    auto Message = DSA->getMessage();
+    Diag(TemplateNameLoc, diag::warn_invalid_specialization)
+        << VarTemplate << !Message.empty() << Message;
+    Diag(DSA->getLoc(), diag::note_marked_here) << DSA;
+  }
+
   // Check for unexpanded parameter packs in any of the template arguments.
   for (unsigned I = 0, N = TemplateArgs.size(); I != N; ++I)
     if (DiagnoseUnexpandedParameterPack(TemplateArgs[I],
@@ -8087,6 +8094,13 @@ DeclResult Sema::ActOnClassTemplateSpecialization(
       << (Name.getAsTemplateDecl() &&
           isa<TemplateTemplateParmDecl>(Name.getAsTemplateDecl()));
     return true;
+  }
+
+  if (const auto *DSA = ClassTemplate->getAttr<DiagnoseSpecializationsAttr>()) {
+    auto Message = DSA->getMessage();
+    Diag(TemplateNameLoc, diag::warn_invalid_specialization)
+        << ClassTemplate << !Message.empty() << Message;
+    Diag(DSA->getLoc(), diag::note_marked_here) << DSA;
   }
 
   DeclContext *DC = ClassTemplate->getDeclContext();
