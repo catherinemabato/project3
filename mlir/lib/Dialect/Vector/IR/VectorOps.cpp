@@ -4283,7 +4283,10 @@ struct TransferReadAfterWriteToBroadcast
 
 void TransferReadOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                  MLIRContext *context) {
-  results.add<TransferReadAfterWriteToBroadcast>(context);
+  results
+      .add<TransferReadAfterWriteToBroadcast,
+           FoldTensorCastIntoConsumerPattern<TransferReadOp, tensor::CastOp>>(
+          context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -4743,7 +4746,10 @@ public:
 
 void TransferWriteOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                   MLIRContext *context) {
-  results.add<FoldWaw, SwapExtractSliceOfTransferWrite>(context);
+  results
+      .add<FoldWaw, SwapExtractSliceOfTransferWrite,
+           FoldTensorCastIntoConsumerPattern<TransferWriteOp, tensor::CastOp>>(
+          context);
 }
 
 //===----------------------------------------------------------------------===//
