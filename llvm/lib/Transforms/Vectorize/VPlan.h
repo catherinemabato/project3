@@ -2709,13 +2709,13 @@ struct VPWidenStoreEVLRecipe final : public VPWidenMemoryRecipe {
 class VPAliasLaneMaskRecipe : public VPSingleDefRecipe {
 
 public:
-  VPAliasLaneMaskRecipe(VPValue *Src, VPValue *Sink)
-      : VPSingleDefRecipe(VPDef::VPAliasLaneMaskSC, {Src, Sink}) {}
+  VPAliasLaneMaskRecipe(VPValue *Src, VPValue *Sink, unsigned ElementSize)
+      : VPSingleDefRecipe(VPDef::VPAliasLaneMaskSC, {Src, Sink}), ElementSize(ElementSize) {}
 
   ~VPAliasLaneMaskRecipe() override = default;
 
   VPAliasLaneMaskRecipe *clone() override {
-    return new VPAliasLaneMaskRecipe(getSourceValue(), getSinkValue());
+    return new VPAliasLaneMaskRecipe(getSourceValue(), getSinkValue(), ElementSize);
   }
 
   VP_CLASSOF_IMPL(VPDef::VPAliasLaneMaskSC);
@@ -2725,8 +2725,16 @@ public:
   /// Get the VPValue* for the pointer being read from
   VPValue *getSourceValue() const { return getOperand(0); }
 
+  // Get the size of the element(s) accessed by the pointers
+  unsigned getAccessedElementSize() const {
+    return ElementSize;
+  }
+
   /// Get the VPValue* for the pointer being stored to
   VPValue *getSinkValue() const { return getOperand(1); }
+
+private:
+  unsigned ElementSize;
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   /// Print the recipe.

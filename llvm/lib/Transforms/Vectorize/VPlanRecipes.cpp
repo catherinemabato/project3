@@ -2813,28 +2813,6 @@ void VPAliasLaneMaskRecipe::execute(VPTransformState &State) {
   Value *SinkValue = State.get(getSinkValue(), 0, true);
   Value *SourceValue = State.get(getSourceValue(), 0, true);
 
-  unsigned ElementSize = 0;
-  auto *ReadInsn = cast<Instruction>(SourceValue);
-  auto *ReadCast = dyn_cast<CastInst>(SourceValue);
-  if (ReadInsn->getOpcode() == Instruction::Add)
-    ReadCast = dyn_cast<CastInst>(ReadInsn->getOperand(0));
-
-  if (ReadCast && ReadCast->getOpcode() == Instruction::PtrToInt) {
-    Value *Ptr = ReadCast->getOperand(0);
-    for (auto *Use : Ptr->users()) {
-      if (auto *GEP = dyn_cast<GetElementPtrInst>(Use)) {
-        auto *EltVT = GEP->getSourceElementType();
-        if (EltVT->isArrayTy())
-          ElementSize = EltVT->getArrayElementType()->getScalarSizeInBits() *
-                        EltVT->getArrayNumElements();
-        else
-          ElementSize = GEP->getSourceElementType()->getScalarSizeInBits() / 8;
-        break;
-      }
-    }
-  }
-  assert(ElementSize > 0 && "Couldn't get element size from pointer");
-
   Value *Diff = Builder.CreateSub(SourceValue, SinkValue, "sub.diff");
   auto *Type = Diff->getType();
   Value *MemEltSize = ConstantInt::get(Type, ElementSize);
