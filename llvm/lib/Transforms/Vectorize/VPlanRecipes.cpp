@@ -364,6 +364,7 @@ bool VPInstruction::canGenerateScalarForFirstLane() const {
   case VPInstruction::CanonicalIVIncrementForPart:
   case VPInstruction::PtrAdd:
   case VPInstruction::ExplicitVectorLength:
+  case VPInstruction::PopCount:
     return true;
   default:
     return false;
@@ -428,6 +429,31 @@ Value *VPInstruction::generatePerPart(VPTransformState &State, unsigned Part) {
     return Builder.CreateIntrinsic(Intrinsic::get_active_lane_mask,
                                    {PredTy, ScalarTC->getType()},
                                    {VIVElem0, ScalarTC}, nullptr, Name);
+  }
+  // Count the number of bits set in each lane and reduce the result to a scalar
+  case VPInstruction::PopCount: {
+    if (Part != 0)
+      return State.get(this, 0, /*IsScalar*/ true);
+    Value *Op = State.get(getOperand(0), Part);
+    auto *VT = Op->getType();
+    Value *Cnt = Op;
+
+    // i1 vectors can just use the add reduction. Bigger elements need a ctpop
+    // first.
+    if (VT->getScalarSizeInBits() > 1)
+      Cnt = Builder.CreateIntrinsic(Intrinsic::ctpop, {VT}, {Cnt});
+
+    auto *VecVT = cast<VectorType>(VT);
+    // Extend to an i8 since i1 is too small to add with
+    if (VecVT->getElementType()->getScalarSizeInBits() < 8) {
+      Cnt = Builder.CreateCast(
+          Instruction::ZExt, Cnt,
+          VectorType::get(Builder.getInt8Ty(), VecVT->getElementCount()));
+    }
+
+    Cnt = Builder.CreateUnaryIntrinsic(Intrinsic::vector_reduce_add, Cnt);
+    Cnt = Builder.CreateCast(Instruction::ZExt, Cnt, Builder.getInt64Ty());
+    return Cnt;
   }
   case VPInstruction::FirstOrderRecurrenceSplice: {
     // Generate code to combine the previous and current values in vector v3.
@@ -682,7 +708,8 @@ Value *VPInstruction::generatePerPart(VPTransformState &State, unsigned Part) {
 
 bool VPInstruction::isVectorToScalar() const {
   return getOpcode() == VPInstruction::ExtractFromEnd ||
-         getOpcode() == VPInstruction::ComputeReductionResult;
+         getOpcode() == VPInstruction::ComputeReductionResult ||
+         getOpcode() == PopCount;
 }
 
 bool VPInstruction::isSingleScalar() const {
@@ -818,6 +845,9 @@ void VPInstruction::print(raw_ostream &O, const Twine &Indent,
     break;
   case VPInstruction::ResumePhi:
     O << "resume-phi";
+    break;
+  case VPInstruction::PopCount:
+    O << "popcount";
     break;
   case VPInstruction::ExplicitVectorLength:
     O << "EXPLICIT-VECTOR-LENGTH";
@@ -2874,6 +2904,38 @@ void VPWidenPointerInductionRecipe::print(raw_ostream &O, const Twine &Indent,
   O << " = WIDEN-POINTER-INDUCTION ";
   getStartValue()->printAsOperand(O, SlotTracker);
   O << ", " << *IndDesc.getStep();
+}
+#endif
+
+void VPAliasLaneMaskRecipe::execute(VPTransformState &State) {
+  IRBuilderBase Builder = State.Builder;
+  Value *SinkValue = State.get(getSinkValue(), 0, true);
+  Value *SourceValue = State.get(getSourceValue(), 0, true);
+
+  Value *Diff = Builder.CreateSub(SourceValue, SinkValue, "sub.diff");
+  auto *Type = Diff->getType();
+  Value *MemEltSize = ConstantInt::get(Type, ElementSize);
+  Value *DiffDiv = Builder.CreateSDiv(Diff, MemEltSize, "diff");
+  // If the difference is negative then some elements may alias
+  Value *Cmp = Builder.CreateICmp(CmpInst::Predicate::ICMP_SLT, DiffDiv,
+                                  ConstantInt::get(Type, 0), "neg.compare");
+  // Splat the compare result then OR it with a lane mask
+  Value *Splat = Builder.CreateVectorSplat(State.VF, Cmp);
+  Value *DiffMask = Builder.CreateIntrinsic(
+      Intrinsic::get_active_lane_mask,
+      {VectorType::get(Builder.getInt1Ty(), State.VF), Type},
+      {ConstantInt::get(Type, 0), DiffDiv}, nullptr, "ptr.diff.lane.mask");
+  Value *Or = Builder.CreateBinOp(Instruction::BinaryOps::Or, DiffMask, Splat);
+  State.set(this, Or, 0, /*IsScalar=*/false);
+}
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+void VPAliasLaneMaskRecipe::print(raw_ostream &O, const Twine &Indent,
+                                  VPSlotTracker &SlotTracker) const {
+  O << Indent << "ALIAS-LANE-MASK ";
+  getSourceValue()->printAsOperand(O, SlotTracker);
+  O << ", ";
+  getSinkValue()->printAsOperand(O, SlotTracker);
 }
 #endif
 
