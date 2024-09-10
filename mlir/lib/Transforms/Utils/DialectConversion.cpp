@@ -1062,10 +1062,8 @@ void CreateOperationRewrite::rollback() {
 }
 
 void UnresolvedMaterializationRewrite::rollback() {
-  if (getMaterializationKind() == MaterializationKind::Target) {
-    for (Value input : op->getOperands())
-      rewriterImpl.mapping.erase(input);
-  }
+  for (Value input : op->getOperands())
+    rewriterImpl.mapping.erase(input);
   op->erase();
 }
 
