@@ -2951,7 +2951,7 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     }
     break;
   }
-  case Builtin::BI__builtin_get_counted_by:
+  case Builtin::BI__builtin_counted_by_ref:
     if (BuiltinGetCountedBy(TheCall))
       return ExprError();
     break;
