@@ -56,6 +56,10 @@ static cl::opt<bool>
     AllowWLSLoops("allow-arm-wlsloops", cl::Hidden, cl::init(true),
                   cl::desc("Enable the generation of WLS loops"));
 
+static cl::opt<unsigned> UseWidenGlobalStrings(
+    "widen-global-strings", cl::Hidden, cl::init(true),
+    cl::desc("Enable the widening of global strings to alignment boundaries"));
+
 extern cl::opt<TailPredication::Mode> EnableTailPredication;
 
 extern cl::opt<bool> EnableMaskedGatherScatters;
@@ -2644,3 +2648,5 @@ bool ARMTTIImpl::hasArmWideBranch(bool Thumb) const {
     return ST->hasARMOps();
   }
 }
+
+bool ARMTTIImpl::useWidenGlobalStrings() const { return UseWidenGlobalStrings; }

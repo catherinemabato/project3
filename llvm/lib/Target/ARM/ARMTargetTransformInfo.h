@@ -334,6 +334,8 @@ public:
 
   bool hasArmWideBranch(bool Thumb) const;
 
+  bool useWidenGlobalStrings() const;
+
   /// @}
 };
 
