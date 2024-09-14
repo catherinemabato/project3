@@ -17,6 +17,15 @@
 #  pragma GCC system_header
 #endif
 
+#ifdef _LIBCPP_COMPILER_CLANG_BASED
+// TODO: use `_LIBCPP_DIAGNOSTIC_*` macros after #107715 is fixed in all supported clang compilers
+#  define _LIBCPP_ASSERT_IS_CONSTANT_EVALUATED                                                                         \
+    (_Pragma("clang diagnostic push") _Pragma("clang diagnostic ignored \"-Wconstant-evaluated\"")                     \
+         __builtin_is_constant_evaluated() _Pragma("clang diagnostic pop"))
+#else
+#  define _LIBCPP_ASSERT_IS_CONSTANT_EVALUATED (__builtin_is_constant_evaluated())
+#endif
+
 #define _LIBCPP_ASSERT(expression, message)                                                                            \
   (__builtin_expect(static_cast<bool>(expression), 1)                                                                  \
        ? (void)0                                                                                                       \
@@ -27,12 +36,17 @@
 //       assumptions without a clear optimization intent, disable that to avoid worsening the code generation.
 //       See https://discourse.llvm.org/t/llvm-assume-blocks-optimization/71609 for a discussion.
 #if 0 && __has_builtin(__builtin_assume)
-#  define _LIBCPP_ASSUME(expression)                                                                                   \
+#  define _LIBCPP_RUNTIME_ASSUME(expression)                                                                           \
     (_LIBCPP_DIAGNOSTIC_PUSH _LIBCPP_CLANG_DIAGNOSTIC_IGNORED("-Wassume")                                              \
          __builtin_assume(static_cast<bool>(expression)) _LIBCPP_DIAGNOSTIC_POP)
 #else
-#  define _LIBCPP_ASSUME(expression) ((void)0)
+#  define _LIBCPP_RUNTIME_ASSUME(expression) ((void)0)
 #endif
+
+#define _LIBCPP_ASSUME(expression)                                                                                     \
+  (_LIBCPP_ASSERT_IS_CONSTANT_EVALUATED                                                                                \
+       ? static_cast<bool>(expression) ? (void)0 : __builtin_unreachable()                                             \
+       : _LIBCPP_RUNTIME_ASSUME(expression))
 
 // clang-format off
 // Fast hardening mode checks.
