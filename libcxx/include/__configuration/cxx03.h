@@ -1,4 +1,3 @@
-// -*- C++ -*-
 //===----------------------------------------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -7,26 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef _LIBCPP_CCOMPLEX
-#define _LIBCPP_CCOMPLEX
+#ifndef _LIBCPP___CONFIGURATION_CXX03_H
+#define _LIBCPP___CONFIGURATION_CXX03_H
 
-/*
-    ccomplex synopsis
-
-#include <complex>
-
-*/
-
-#include <__configuration/cxx03.h>
-
-#if defined(_LIBCPP_CXX03_LANG) && !defined(_LIBCPP_CXX03_USE_MAIN_HEADERS)
-#  include <__cxx03/ccomplex>
-#else
-#include <complex>
-
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#ifndef _LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER
 #  pragma GCC system_header
 #endif
-#endif // _LIBCPP_CXX03_LANG
 
-#endif // _LIBCPP_CCOMPLEX
+// NOLINTNEXTLINE(libcpp-cpp-version-check)
+#  if __cplusplus < 201103L
+#    define _LIBCPP_CXX03_LANG
+#  endif
+
+#endif // _LIBCPP___CONFIGURATION_CXX03_H

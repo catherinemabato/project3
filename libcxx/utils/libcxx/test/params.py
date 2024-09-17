@@ -439,5 +439,12 @@ DEFAULT_PARAMETERS = [
             AddSubstitution('%{clang-tidy}', exe),
         ]
     ),
+    Parameter(
+        name='test-main-headers',
+        type=bool,
+        default=False,
+        help="Whether to test the main or C++03-specific headers. Only changes behaviour when std=c++03.",
+        actions=lambda enabled: [] if not enabled else [AddFlag("-D_LIBCPP_CXX03_USE_MAIN_HEADERS")],
+    ),
 ]
 # fmt: on

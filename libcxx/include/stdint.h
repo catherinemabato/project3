@@ -103,25 +103,29 @@ Macros:
 
 */
 
-#include <__config>
+#if defined(_LIBCPP_CXX03_LANG) && !defined(_LIBCPP_CXX03_USE_MAIN_HEADERS)
+#  include <__cxx03/stdint.h>
+#else
+#  include <__config>
 
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#  pragma GCC system_header
-#endif
+#  if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#    pragma GCC system_header
+#  endif
 
 /* C99 stdlib (e.g. glibc < 2.18) does not provide macros needed
    for C++11 unless __STDC_LIMIT_MACROS and __STDC_CONSTANT_MACROS
    are defined
 */
-#if defined(__cplusplus) && !defined(__STDC_LIMIT_MACROS)
-#  define __STDC_LIMIT_MACROS
-#endif
-#if defined(__cplusplus) && !defined(__STDC_CONSTANT_MACROS)
-#  define __STDC_CONSTANT_MACROS
-#endif
+#  if defined(__cplusplus) && !defined(__STDC_LIMIT_MACROS)
+#    define __STDC_LIMIT_MACROS
+#  endif
+#  if defined(__cplusplus) && !defined(__STDC_CONSTANT_MACROS)
+#    define __STDC_CONSTANT_MACROS
+#  endif
 
-#if __has_include_next(<stdint.h>)
-#  include_next <stdint.h>
-#endif
+#  if __has_include_next(<stdint.h>)
+#    include_next <stdint.h>
+#  endif
+#endif // _LIBCPP_CXX03_LANG
 
 #endif // _LIBCPP_STDINT_H

@@ -33,14 +33,20 @@ Functions:
 
 */
 
-#include <__config>
+#include <__configuration/cxx03.h>
 
-#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
-#  pragma GCC system_header
-#endif
+#if defined(_LIBCPP_CXX03_LANG) && !defined(_LIBCPP_CXX03_USE_MAIN_HEADERS)
+#  include <__cxx03/locale.h>
+#else
+#  include <__config>
 
-#if __has_include_next(<locale.h>)
-#  include_next <locale.h>
-#endif
+#  if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#    pragma GCC system_header
+#  endif
+
+#  if __has_include_next(<locale.h>)
+#    include_next <locale.h>
+#  endif
+#endif // _LIBCPP_CXX03_LANG
 
 #endif // _LIBCPP_LOCALE_H
