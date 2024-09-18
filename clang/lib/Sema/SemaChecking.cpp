@@ -5637,27 +5637,33 @@ ExprResult Sema::BuiltinCountedByRef(ExprResult TheCallResult) {
             isArrow = false;
           }
 
-          QualType CountTy = CountFD->getType();
-          New = UnaryOperator::Create(Context, New, UO_AddrOf,
-                                      Context.getPointerType(CountTy),
-                                      VK_LValue, OK_Ordinary, SourceLocation(),
-                                      false, FPOptionsOverride());
-
-          return ExprResult(New);
+          return ExprResult(UnaryOperator::Create(
+              Context, New, UO_AddrOf,
+              Context.getPointerType(CountFD->getType()), VK_LValue,
+              OK_Ordinary, SourceLocation(), false, FPOptionsOverride()));
         } else {
-          llvm::report_fatal_error("Cannot find the counted_by 'count' field");
+          auto *A = FAMDecl->getAttr<CountedByAttr>();
+          auto *CountDecl = cast<DeclRefExpr>(A->getCount())->getDecl();
+
+          Diag(Arg->getBeginLoc(), diag::err_count_attr_must_be_in_structure)
+              << CountDecl << 0 << Arg->getSourceRange();
+          Diag(CountDecl->getBeginLoc(),
+               diag::note_flexible_array_counted_by_attr_field)
+              << CountDecl << CountDecl->getSourceRange();
+          return ExprError();
         }
       }
     }
   }
 
-  QualType Ty = Context.getIntTypeForBitwidth(
-      Context.getIntWidth(Context.VoidPtrTy), true);
+  QualType SizeTypePtrTy = Context.getPointerType(Context.getSizeType());
+  QualType NullPtrTy =
+      Context.getIntTypeForBitwidth(Context.getIntWidth(SizeTypePtrTy), true);
 
   return ExprResult(ImplicitCastExpr::Create(
-      Context, Context.VoidPtrTy, CK_IntegralToPointer,
-      IntegerLiteral::Create(Context, Context.MakeIntValue(0, Ty), Ty,
-                             SourceLocation()),
+      Context, SizeTypePtrTy, CK_IntegralToPointer,
+      IntegerLiteral::Create(Context, Context.MakeIntValue(0, NullPtrTy),
+                             NullPtrTy, SourceLocation()),
       nullptr, VK_LValue, FPOptionsOverride()));
 }
 
