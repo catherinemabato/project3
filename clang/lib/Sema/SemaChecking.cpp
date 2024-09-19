@@ -5626,21 +5626,25 @@ ExprResult Sema::BuiltinCountedByRef(ExprResult TheCallResult) {
             PathToFD.push_back(CountFD);
 
           // Build a MemberExpr to the 'count' field. This accounts for any
-          // anonymous structs / unions that may contain the field.
+          // anonymous structs / unions that may contain the field. Use the
+          // CallExpr's SourceLocation for future diagnostics.
+          SourceLocation Loc = TheCall->getBeginLoc();
           bool isArrow = ME->isArrow();
           Expr *New = ME->getBase();
           for (NamedDecl *ND : PathToFD) {
             ValueDecl *VD = cast<ValueDecl>(ND);
-            New = MemberExpr::CreateImplicit(Context, New, isArrow, VD,
-                                             VD->getType(), VK_PRValue,
-                                             OK_Ordinary);
+            auto *ME = MemberExpr::CreateImplicit(Context, New, isArrow, VD,
+                                                  VD->getType(), VK_PRValue,
+                                                  OK_Ordinary);
+            ME->setMemberLoc(Loc);
+            New = ME;
             isArrow = false;
           }
 
           return ExprResult(UnaryOperator::Create(
               Context, New, UO_AddrOf,
               Context.getPointerType(CountFD->getType()), VK_LValue,
-              OK_Ordinary, SourceLocation(), false, FPOptionsOverride()));
+              OK_Ordinary, Loc, false, FPOptionsOverride()));
         } else {
           auto *A = FAMDecl->getAttr<CountedByAttr>();
           auto *CountDecl = cast<DeclRefExpr>(A->getCount())->getDecl();
