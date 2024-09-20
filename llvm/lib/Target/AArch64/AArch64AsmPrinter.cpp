@@ -940,7 +940,7 @@ void AArch64AsmPrinter::emitEndOfAsmFile(Module &M) {
         M.getModuleFlag("ptrauth-elf-got"));
     if (PtrAuthELFGOTFlag && PtrAuthELFGOTFlag->getZExtValue() == 1)
       for (const GlobalValue &GV : M.global_values())
-        if (!GV.use_empty() && GV.getValueType()->isFunctionTy() &&
+        if (!GV.use_empty() && isa<Function>(GV) &&
             !GV.getName().starts_with("llvm."))
           OutStreamer->emitSymbolAttribute(getSymbol(&GV),
                                            MCSA_ELF_TypeFunction);
