@@ -1786,8 +1786,9 @@ public:
   /// \return The maximum number of function arguments the target supports.
   unsigned getMaxNumArgs() const;
 
-  /// \return true if global strings should be padded to an alignment boundary
-  bool useWidenGlobalStrings() const;
+  /// \return For an array of given Size, return alignment boundary to
+  /// pad to. Default is no padding.
+  unsigned getNumBytesToPad(unsigned Size) const;
 
   /// @}
 
@@ -2182,7 +2183,7 @@ public:
   getVPLegalizationStrategy(const VPIntrinsic &PI) const = 0;
   virtual bool hasArmWideBranch(bool Thumb) const = 0;
   virtual unsigned getMaxNumArgs() const = 0;
-  virtual bool useWidenGlobalStrings() const = 0;
+  virtual unsigned getNumBytesToPad(unsigned Size) const = 0;
 };
 
 template <typename T>
@@ -2957,8 +2958,8 @@ public:
     return Impl.getMaxNumArgs();
   }
 
-  bool useWidenGlobalStrings() const override {
-    return Impl.useWidenGlobalStrings();
+  unsigned getNumBytesToPad(unsigned Size) const override {
+    return Impl.getNumBytesToPad(Size);
   }
 };
 

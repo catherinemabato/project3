@@ -1348,8 +1348,8 @@ bool TargetTransformInfo::hasActiveVectorLength(unsigned Opcode, Type *DataType,
   return TTIImpl->hasActiveVectorLength(Opcode, DataType, Alignment);
 }
 
-bool TargetTransformInfo::useWidenGlobalStrings() const {
-  return TTIImpl->useWidenGlobalStrings();
+unsigned TargetTransformInfo::getNumBytesToPad(unsigned Size) const {
+  return TTIImpl->getNumBytesToPad(Size);
 }
 
 TargetTransformInfo::Concept::~Concept() = default;
