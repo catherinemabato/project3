@@ -10,8 +10,10 @@
 // transforms them into more optimized versions of the same loop. In cases
 // where this happens, it can be a significant performance win.
 //
-// We currently only recognize one loop that finds the first mismatched byte
-// in an array and returns the index, i.e. something like:
+// We currently support two loops:
+//
+// 1. A loop that finds the first mismatched byte in an array and returns the
+// index, i.e. something like:
 //
 //  while (++i != n) {
 //    if (a[i] != b[i])
@@ -24,11 +26,27 @@
 // boundaries. However, even with these checks it is still profitable to do the
 // transformation.
 //
+// 2. A loop that finds the first matching byte in an array among a set of
+// possible matches, e.g.:
+//
+//   for (; first != last; ++first)
+//     for (s_it = s_first; s_it != s_last; ++s_it)
+//       if (*first == *s_it)
+//         return first;
+//   return last;
+//
+// This corresponds to std::find_first_of (for arrays of bytes) from the C++
+// standard library. This function can be implemented very efficiently for
+// targets that support @experimental.vector.match. For example, on AArch64
+// targets that implement SVE2, this lower to the MATCH instruction, which
+// enables us to perform 16x16=256 comparisons in one go. This can lead to very
+// significant speedups.
+//
 //===----------------------------------------------------------------------===//
 //
-// NOTE: This Pass matches a really specific loop pattern because it's only
+// NOTE: This Pass matches really specific loop patterns because it's only
 // supposed to be a temporary solution until our LoopVectorizer is powerful
-// enought to vectorize it automatically.
+// enought to vectorize them automatically.
 //
 // TODO List:
 //
@@ -78,6 +96,12 @@ static cl::opt<unsigned>
     ByteCmpVF("loop-idiom-vectorize-bytecmp-vf", cl::Hidden,
               cl::desc("The vectorization factor for byte-compare patterns."),
               cl::init(16));
+
+static cl::opt<bool>
+    DisableFindFirstByte("disable-loop-idiom-vectorize-find-first-byte",
+                         cl::Hidden, cl::init(false),
+                         cl::desc("Proceed with Loop Idiom Vectorize Pass, but "
+                                  "do not convert find-first-byte loop(s)."));
 
 static cl::opt<bool>
     VerifyLoops("loop-idiom-vectorize-verify", cl::Hidden, cl::init(false),
@@ -136,6 +160,19 @@ private:
                             PHINode *IndPhi, Value *MaxLen, Instruction *Index,
                             Value *Start, bool IncIdx, BasicBlock *FoundBB,
                             BasicBlock *EndBB);
+
+  bool recognizeFindFirstByte();
+
+  Value *expandFindFirstByte(IRBuilder<> &Builder, DomTreeUpdater &DTU,
+                             unsigned VF, unsigned CharWidth,
+                             BasicBlock *ExitSucc, BasicBlock *ExitFail,
+                             Value *StartA, Value *EndA, Value *StartB,
+                             Value *EndB);
+
+  void transformFindFirstByte(PHINode *IndPhi, unsigned VF, unsigned CharWidth,
+                              BasicBlock *ExitSucc, BasicBlock *ExitFail,
+                              Value *StartA, Value *EndA, Value *StartB,
+                              Value *EndB);
   /// @}
 };
 } // anonymous namespace
@@ -190,7 +227,13 @@ bool LoopIdiomVectorize::run(Loop *L) {
   LLVM_DEBUG(dbgs() << DEBUG_TYPE " Scanning: F[" << F.getName() << "] Loop %"
                     << CurLoop->getHeader()->getName() << "\n");
 
-  return recognizeByteCompare();
+  if (recognizeByteCompare())
+    return true;
+
+  if (recognizeFindFirstByte())
+    return true;
+
+  return false;
 }
 
 bool LoopIdiomVectorize::recognizeByteCompare() {
@@ -932,6 +975,383 @@ void LoopIdiomVectorize::transformByteCompare(GetElementPtrInst *GEPA,
   // the outer loop if there is one.
   if (!CurLoop->isOutermost())
     CurLoop->getParentLoop()->addBasicBlockToLoop(CmpBB, *LI);
+
+  if (VerifyLoops && CurLoop->getParentLoop()) {
+    CurLoop->getParentLoop()->verifyLoop();
+    if (!CurLoop->getParentLoop()->isRecursivelyLCSSAForm(*DT, *LI))
+      report_fatal_error("Loops must remain in LCSSA form!");
+  }
+}
+
+bool LoopIdiomVectorize::recognizeFindFirstByte() {
+  // Currently the transformation only works on scalable vector types, although
+  // there is no fundamental reason why it cannot be made to work for fixed
+  // width too.
+  if (!TTI->supportsScalableVectors() || DisableFindFirstByte)
+    return false;
+
+  // Define some constants we need throughout.
+  // TODO: Some of these could be made configurable parameters. For example, we
+  // could allow CharWidth = 16 (and VF = 8).
+  unsigned VF = 16;
+  unsigned CharWidth = 8;
+  BasicBlock *Header = CurLoop->getHeader();
+  LLVMContext &Ctx = Header->getContext();
+  auto *CharTy = Type::getIntNTy(Ctx, CharWidth);
+  auto *CharVTy = ScalableVectorType::get(CharTy, VF);
+
+  // Check if the target supports efficient vector matches for vectors of
+  // bytes.
+  if (!TTI->hasVectorMatch(CharVTy, VF))
+    return false;
+
+  // In LoopIdiomVectorize::run we have already checked that the loop has a
+  // preheader so we can assume it's in a canonical form.
+  if (CurLoop->getNumBackEdges() != 1 || CurLoop->getNumBlocks() != 4)
+    return false;
+
+  // We expect this loop to have one nested loop.
+  if (CurLoop->getSubLoops().size() != 1)
+    return false;
+
+  auto *InnerLoop = CurLoop->getSubLoops().front();
+  PHINode *IndPhi = dyn_cast<PHINode>(&Header->front());
+
+  if (!IndPhi || IndPhi->getNumIncomingValues() != 2)
+    return false;
+
+  auto LoopBlocks = CurLoop->getBlocks();
+  // We are expecting the following blocks below. For now, we will bail out for
+  // anything deviating from this.
+  //
+  // .preheader:
+  //   %14 = phi ptr [ %24, %23 ], [ %3, %.preheader.preheader ]
+  //   %15 = load i8, ptr %14, align 1
+  //   br label %19
+  //
+  // 19:
+  //   %20 = phi ptr [ %7, %.preheader ], [ %17, %16 ]
+  //   %21 = load i8, ptr %20, align 1
+  //   %22 = icmp eq i8 %15, %21
+  //   br i1 %22, label %.loopexit.loopexit, label %16
+  //
+  // 16:
+  //   %17 = getelementptr inbounds i8, ptr %20, i64 1
+  //   %18 = icmp eq ptr %17, %10
+  //   br i1 %18, label %23, label %19
+  //
+  // 23:
+  //   %24 = getelementptr inbounds i8, ptr %14, i64 1
+  //   %25 = icmp eq ptr %24, %6
+  //   br i1 %25, label %.loopexit.loopexit5, label %.preheader
+  //
+  if (LoopBlocks[0]->sizeWithoutDebug() > 3 ||
+      LoopBlocks[1]->sizeWithoutDebug() > 4 ||
+      LoopBlocks[2]->sizeWithoutDebug() > 3 ||
+      LoopBlocks[3]->sizeWithoutDebug() > 3)
+    return false;
+
+  // If we match the pattern, IndPhi is going to be replaced. We cannot replace
+  // the loop if any other of its instructions are used outside of it.
+  for (BasicBlock *BB : LoopBlocks)
+    for (Instruction &I : *BB)
+      if (&I != IndPhi)
+        for (User *U : I.users())
+          if (!CurLoop->contains(cast<Instruction>(U)))
+            return false;
+
+  // Match the branch instruction for the header. We are expecting an
+  // unconditional branch to the inner loop.
+  BasicBlock *MatchBB;
+  if (!match(Header->getTerminator(), m_UnconditionalBr(MatchBB)) ||
+      !InnerLoop->contains(MatchBB))
+    return false;
+
+  // MatchBB should be the entrypoint into the inner loop containing the
+  // comparison between a search item and a valid/successful match.
+  ICmpInst::Predicate MatchPred;
+  BasicBlock *ExitSucc;
+  BasicBlock *InnerBB;
+  Value *LoadA, *LoadB;
+  if (!match(MatchBB->getTerminator(),
+             m_Br(m_ICmp(MatchPred, m_Value(LoadA), m_Value(LoadB)),
+                  m_BasicBlock(ExitSucc), m_BasicBlock(InnerBB))) ||
+      MatchPred != ICmpInst::Predicate::ICMP_EQ ||
+      !InnerLoop->contains(InnerBB))
+    return false;
+
+  // We expect a single use of IndPhi outside of CurLoop. The outside use
+  // should be a PHINode in ExitSucc coming from MatchBB.
+  // Note: Strictly speaking we are not checking for a *single* use of IndPhi
+  // outside of CurLoop here, but below we check that we only exit CurLoop to
+  // ExitSucc in one place, so by construction this should be true. Besides, in
+  // the event it is not, as long as the use is a PHINode in ExitSucc and comes
+  // from MatchBB, the transformation should still be valid in any case.
+  for (Use &U : IndPhi->uses())
+    if (CurLoop->contains(cast<Instruction>(U.getUser())))
+      continue;
+    else if (auto *PN = dyn_cast<PHINode>(U.getUser());
+             !PN || PN->getParent() != ExitSucc ||
+             PN->getIncomingBlock(U) != MatchBB)
+      return false;
+
+  // Match the loads.
+  Value *A, *B;
+  if (!match(LoadA, m_Load(m_Value(A))) || !match(LoadB, m_Load(m_Value(B))))
+    return false;
+
+  // Make sure they are simple.
+  LoadInst *LoadAI = cast<LoadInst>(LoadA);
+  LoadInst *LoadBI = cast<LoadInst>(LoadB);
+  if (!LoadAI->isSimple() || !LoadBI->isSimple())
+    return false;
+
+  // The values loaded come from two PHIs that can only have two incoming
+  // values.
+  PHINode *PNA = dyn_cast<PHINode>(A);
+  PHINode *PNB = dyn_cast<PHINode>(B);
+  if (!PNA || PNA->getNumIncomingValues() != 2 || !PNB ||
+      PNB->getNumIncomingValues() != 2)
+    return false;
+
+  // One PHI comes from the outer loop, the other one from the inner loop.
+  // CurLoop contains PNA, InnerLoop PNB.
+  if (InnerLoop->contains(PNA))
+    std::swap(PNA, PNB);
+  if (PNA != &Header->front() || PNB != &MatchBB->front())
+    return false;
+
+  // The incoming values of both PHI nodes should be a gep of 1.
+  Value *StartA = PNA->getIncomingValue(0);
+  Value *IndexA = PNA->getIncomingValue(1);
+  if (CurLoop->contains(PNA->getIncomingBlock(0)))
+    std::swap(StartA, IndexA);
+
+  Value *StartB = PNB->getIncomingValue(0);
+  Value *IndexB = PNB->getIncomingValue(1);
+  if (InnerLoop->contains(PNB->getIncomingBlock(0)))
+    std::swap(StartB, IndexB);
+
+  // Match the GEPs.
+  if (!match(IndexA, m_GEP(m_Specific(PNA), m_One())) ||
+      !match(IndexB, m_GEP(m_Specific(PNB), m_One())))
+    return false;
+
+  GetElementPtrInst *GEPA = cast<GetElementPtrInst>(IndexA);
+  GetElementPtrInst *GEPB = cast<GetElementPtrInst>(IndexB);
+
+  // Check we are loading CharTy values.
+  if (!GEPA->getResultElementType()->isIntegerTy(CharWidth) ||
+      !GEPB->getResultElementType()->isIntegerTy(CharWidth) ||
+      !LoadAI->getType()->isIntegerTy(CharWidth) ||
+      !LoadBI->getType()->isIntegerTy(CharWidth))
+    return false;
+
+  // InnerBB should increment the address of the key we are checking.
+  BasicBlock *OuterBB;
+  Value *EndB;
+  if (!match(InnerBB->getTerminator(),
+             m_Br(m_ICmp(MatchPred, m_Specific(GEPB), m_Value(EndB)),
+                  m_BasicBlock(OuterBB), m_Specific(MatchBB))) ||
+      MatchPred != ICmpInst::Predicate::ICMP_EQ || !CurLoop->contains(OuterBB))
+    return false;
+
+  // OuterBB should increment the address of the element we are looking for.
+  Value *EndA;
+  BasicBlock *ExitFail;
+  if (!match(OuterBB->getTerminator(),
+             m_Br(m_ICmp(MatchPred, m_Specific(GEPA), m_Value(EndA)),
+                  m_BasicBlock(ExitFail), m_Specific(Header))) ||
+      MatchPred != ICmpInst::Predicate::ICMP_EQ)
+    return false;
+
+  LLVM_DEBUG(dbgs() << "FOUND IDIOM IN LOOP: \n" << *CurLoop << "\n\n");
+
+  transformFindFirstByte(IndPhi, VF, CharWidth, ExitSucc, ExitFail, StartA,
+                         EndA, StartB, EndB);
+  return true;
+}
+
+Value *LoopIdiomVectorize::expandFindFirstByte(
+    IRBuilder<> &Builder, DomTreeUpdater &DTU, unsigned VF, unsigned CharWidth,
+    BasicBlock *ExitSucc, BasicBlock *ExitFail, Value *StartA, Value *EndA,
+    Value *StartB, Value *EndB) {
+  // Set up some types and constants that we intend to reuse.
+  auto *I64Ty = Builder.getInt64Ty();
+  auto *I32Ty = Builder.getInt32Ty();
+  auto *PtrTy = Builder.getPtrTy();
+  auto *CharTy = Builder.getIntNTy(CharWidth);
+  auto *PredVTy = ScalableVectorType::get(Builder.getInt1Ty(), VF);
+  auto *CharVTy = ScalableVectorType::get(CharTy, VF);
+  auto *ConstVF = ConstantInt::get(I32Ty, VF);
+
+  // Other common arguments.
+  BasicBlock *Preheader = CurLoop->getLoopPreheader();
+  LLVMContext &Ctx = Preheader->getContext();
+  Value *Passthru = ConstantInt::getNullValue(CharVTy);
+
+  // Split block in the original loop preheader.
+  // SPH is the new preheader to the old scalar loop.
+  BasicBlock *SPH = SplitBlock(Preheader, Preheader->getTerminator(), DT, LI,
+                               nullptr, "scalar_ph");
+
+  // Create the blocks that we're going to use.
+  //
+  // We will have the following loops:
+  // (O) Outer loop where we iterate over the elements of the first array (A).
+  // (I) Inner loop where we iterate over the elements of the second array (B).
+  //
+  // Overall, the blocks created below will carry out the following actions:
+  // (1) Load a vector's worth of A. Go to (2).
+  // (2) (a) Load a vector's worth of B.
+  //     (b) Splat the first element loaded to the inactive lanes.
+  //     (c) Check if any elements match. If so go to (3), otherwise go to (4).
+  // (3) Compute the index of the first match and exit.
+  // (4) Check if we've reached the end of B. If not loop back to (2), otherwise
+  //     go to (5).
+  // (5) Check if we've reached the end of A. If not loop back to (1), otherwise
+  //     exit.
+  // Block (3) is not part of any loop. Blocks (1,5) and (2,4) belong to the
+  // outer and inner loops, respectively.
+  BasicBlock *BB1 = BasicBlock::Create(Ctx, "", SPH->getParent(), SPH);
+  BasicBlock *BB2 = BasicBlock::Create(Ctx, "", SPH->getParent(), SPH);
+  BasicBlock *BB3 = BasicBlock::Create(Ctx, "", SPH->getParent(), SPH);
+  BasicBlock *BB4 = BasicBlock::Create(Ctx, "", SPH->getParent(), SPH);
+  BasicBlock *BB5 = BasicBlock::Create(Ctx, "", SPH->getParent(), SPH);
+
+  // Update LoopInfo with the new loops.
+  auto OL = LI->AllocateLoop();
+  auto IL = LI->AllocateLoop();
+
+  if (auto ParentLoop = CurLoop->getParentLoop()) {
+    ParentLoop->addChildLoop(OL);
+    ParentLoop->addBasicBlockToLoop(BB3, *LI);
+  } else {
+    LI->addTopLevelLoop(OL);
+  }
+
+  // Add the inner loop to the outer.
+  OL->addChildLoop(IL);
+
+  // Add the new basic blocks to the corresponding loops.
+  OL->addBasicBlockToLoop(BB1, *LI);
+  OL->addBasicBlockToLoop(BB5, *LI);
+  IL->addBasicBlockToLoop(BB2, *LI);
+  IL->addBasicBlockToLoop(BB4, *LI);
+
+  // Keep a reference to the old scalar loop.
+  Builder.SetInsertPoint(Preheader->getTerminator());
+  Builder.CreateCondBr(Builder.getFalse(), SPH, BB1);
+  Preheader->getTerminator()->eraseFromParent();
+  DTU.applyUpdates({{DominatorTree::Insert, Preheader, BB1}});
+
+  // (1) Load a vector's worth of A and branch to the inner loop.
+  Builder.SetInsertPoint(BB1);
+  PHINode *PA = Builder.CreatePHI(PtrTy, 2, "pa");
+
+  Value *IncA = Builder.CreateGEP(CharTy, PA, ConstVF);
+  Value *CheckA = Builder.CreateICmpULT(IncA, EndA);
+  Value *SelA = Builder.CreateSelect(CheckA, IncA, EndA);
+  Value *PredA =
+      Builder.CreateIntrinsic(Intrinsic::get_active_lane_mask, {PredVTy, I64Ty},
+                              {Builder.CreatePointerCast(PA, I64Ty),
+                               Builder.CreatePointerCast(SelA, I64Ty)});
+  Value *LoadA =
+      Builder.CreateMaskedLoad(CharVTy, PA, Align(1), PredA, Passthru);
+  Builder.CreateBr(BB2);
+  DTU.applyUpdates({{DominatorTree::Insert, BB1, BB2}});
+
+  // (2) Inner loop.
+  Builder.SetInsertPoint(BB2);
+  PHINode *PB = Builder.CreatePHI(PtrTy, 2, "pb");
+
+  // (2.a) Load a vector's worth of B.
+  Value *IncB = Builder.CreateGEP(CharTy, PB, ConstVF);
+  Value *CheckB = Builder.CreateICmpULT(IncB, EndB);
+  Value *SelB = Builder.CreateSelect(CheckB, IncB, EndB);
+  Value *PredB =
+      Builder.CreateIntrinsic(Intrinsic::get_active_lane_mask, {PredVTy, I64Ty},
+                              {Builder.CreatePointerCast(PB, I64Ty),
+                               Builder.CreatePointerCast(SelB, I64Ty)});
+  Value *LoadBPart =
+      Builder.CreateMaskedLoad(CharVTy, PB, Align(1), PredB, Passthru);
+
+  // (2.b) Splat the first element to the inactive lanes.
+  Value *LoadB0 = Builder.CreateExtractElement(LoadBPart, uint64_t(0));
+  Value *LoadB0Splat =
+      Builder.CreateVectorSplat(PredVTy->getElementCount(), LoadB0);
+  Value *LoadB = Builder.CreateSelect(PredB, LoadBPart, LoadB0Splat);
+
+  // (2.c) Test if there's a match.
+  Value *MatchPred =
+      Builder.CreateIntrinsic(Intrinsic::experimental_vector_match, {CharVTy},
+                              {LoadA, LoadB, PredA, ConstVF});
+  Value *IfAnyMatch = Builder.CreateOrReduce(MatchPred);
+  Builder.CreateCondBr(IfAnyMatch, BB3, BB4);
+  DTU.applyUpdates(
+      {{DominatorTree::Insert, BB2, BB3}, {DominatorTree::Insert, BB2, BB4}});
+
+  // (3) We found a match. Compute the index of its location and exit.
+  Builder.SetInsertPoint(BB3);
+  Value *MatchCnt = Builder.CreateIntrinsic(
+      Intrinsic::experimental_cttz_elts, {I64Ty, MatchPred->getType()},
+      {MatchPred, /*ZeroIsPoison=*/Builder.getInt1(true)});
+  Value *MatchVal = Builder.CreateGEP(CharTy, PA, MatchCnt);
+  Builder.CreateBr(ExitSucc);
+  DTU.applyUpdates({{DominatorTree::Insert, BB3, ExitSucc}});
+
+  // (4) Check if we've reached the end of B.
+  Builder.SetInsertPoint(BB4);
+  Builder.CreateCondBr(CheckB, BB2, BB5);
+  DTU.applyUpdates(
+      {{DominatorTree::Insert, BB4, BB2}, {DominatorTree::Insert, BB4, BB5}});
+
+  // (5) Check if we've reached the end of A.
+  Builder.SetInsertPoint(BB5);
+  Builder.CreateCondBr(CheckA, BB1, ExitFail);
+  DTU.applyUpdates({{DominatorTree::Insert, BB5, BB1},
+                    {DominatorTree::Insert, BB5, ExitFail}});
+
+  // Set up the PHI's.
+  PA->addIncoming(StartA, Preheader);
+  PA->addIncoming(IncA, BB5);
+  PB->addIncoming(StartB, BB1);
+  PB->addIncoming(IncB, BB4);
+
+  if (VerifyLoops) {
+    OL->verifyLoop();
+    IL->verifyLoop();
+    if (!OL->isRecursivelyLCSSAForm(*DT, *LI))
+      report_fatal_error("Loops must remain in LCSSA form!");
+  }
+
+  return MatchVal;
+}
+
+void LoopIdiomVectorize::transformFindFirstByte(PHINode *IndPhi, unsigned VF,
+                                                unsigned CharWidth,
+                                                BasicBlock *ExitSucc,
+                                                BasicBlock *ExitFail,
+                                                Value *StartA, Value *EndA,
+                                                Value *StartB, Value *EndB) {
+  // Insert the find first byte code at the end of the preheader block.
+  BasicBlock *Preheader = CurLoop->getLoopPreheader();
+  BranchInst *PHBranch = cast<BranchInst>(Preheader->getTerminator());
+  IRBuilder<> Builder(PHBranch);
+  DomTreeUpdater DTU(DT, DomTreeUpdater::UpdateStrategy::Lazy);
+  Builder.SetCurrentDebugLocation(PHBranch->getDebugLoc());
+
+  Value *MatchVal = expandFindFirstByte(Builder, DTU, VF, CharWidth, ExitSucc,
+                                        ExitFail, StartA, EndA, StartB, EndB);
+
+  // Add new incoming values with the result of the transformation to PHINodes
+  // of ExitSucc that use IndPhi.
+  for (auto &PN : ExitSucc->phis())
+    for (auto const &V : PN.incoming_values())
+      if (V == IndPhi) {
+        PN.addIncoming(MatchVal, cast<Instruction>(MatchVal)->getParent());
+        break;
+      }
 
   if (VerifyLoops && CurLoop->getParentLoop()) {
     CurLoop->getParentLoop()->verifyLoop();
