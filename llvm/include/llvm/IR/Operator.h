@@ -528,13 +528,13 @@ public:
   /// Collect the offset of this GEP as a map of Values to their associated
   /// APInt multipliers, as well as a total Constant Offset.
   bool collectOffset(const DataLayout &DL, unsigned BitWidth,
-                     MapVector<Value *, APInt> &VariableOffsets,
+                     SmallMapVector<Value *, APInt, 4> &VariableOffsets,
                      APInt &ConstantOffset) const;
 };
 
 template <>
-struct OperandTraits<GEPOperator>
-    : public VariadicOperandTraits<GEPOperator, 1> {};
+struct OperandTraits<GEPOperator> : public VariadicOperandTraits<GEPOperator> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(GEPOperator, Value)
 

@@ -171,6 +171,7 @@ Attribute Attribute::get(LLVMContext &Context, Attribute::AttrKind Kind,
                          const ConstantRange &CR) {
   assert(Attribute::isConstantRangeAttrKind(Kind) &&
          "Not a ConstantRange attribute");
+  assert(!CR.isFullSet() && "ConstantRange attribute must not be full");
   LLVMContextImpl *pImpl = Context.pImpl;
   FoldingSetNodeID ID;
   ID.AddInteger(Kind);
@@ -1040,7 +1041,7 @@ AttributeSetNode::AttributeSetNode(ArrayRef<Attribute> Attrs)
 
 AttributeSetNode *AttributeSetNode::get(LLVMContext &C,
                                         ArrayRef<Attribute> Attrs) {
-  SmallVector<Attribute, 8> SortedAttrs(Attrs.begin(), Attrs.end());
+  SmallVector<Attribute, 8> SortedAttrs(Attrs);
   llvm::sort(SortedAttrs);
   return getSorted(C, SortedAttrs);
 }
@@ -1607,7 +1608,7 @@ AttributeList AttributeList::addRangeRetAttr(LLVMContext &C,
 
 AttributeList AttributeList::addAllocSizeParamAttr(
     LLVMContext &C, unsigned Index, unsigned ElemSizeArg,
-    const std::optional<unsigned> &NumElemsArg) {
+    const std::optional<unsigned> &NumElemsArg) const {
   AttrBuilder B(C);
   B.addAllocSizeAttr(ElemSizeArg, NumElemsArg);
   return addParamAttributes(C, Index, B);
@@ -2020,6 +2021,9 @@ AttrBuilder &AttrBuilder::addInAllocaAttr(Type *Ty) {
 
 AttrBuilder &AttrBuilder::addConstantRangeAttr(Attribute::AttrKind Kind,
                                                const ConstantRange &CR) {
+  if (CR.isFullSet())
+    return *this;
+
   return addAttribute(Attribute::get(Ctx, Kind, CR));
 }
 

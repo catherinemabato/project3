@@ -52,8 +52,8 @@ class InsertPosition {
 
 public:
   InsertPosition(std::nullptr_t) : InsertAt() {}
-  // LLVM_DEPRECATED("Use BasicBlock::iterators for insertion instead",
-  // "BasicBlock::iterator")
+  LLVM_DEPRECATED("Use BasicBlock::iterators for insertion instead",
+                  "BasicBlock::iterator")
   InsertPosition(Instruction *InsertBefore);
   InsertPosition(BasicBlock *InsertAtEnd);
   InsertPosition(InstListType::iterator InsertAt) : InsertAt(InsertAt) {}
@@ -433,17 +433,7 @@ public:
   /// convenience method for passes to do so.
   /// dropUBImplyingAttrsAndUnknownMetadata should be used instead of
   /// this API if the Instruction being modified is a call.
-  void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs);
-  void dropUnknownNonDebugMetadata() {
-    return dropUnknownNonDebugMetadata(std::nullopt);
-  }
-  void dropUnknownNonDebugMetadata(unsigned ID1) {
-    return dropUnknownNonDebugMetadata(ArrayRef(ID1));
-  }
-  void dropUnknownNonDebugMetadata(unsigned ID1, unsigned ID2) {
-    unsigned IDs[] = {ID1, ID2};
-    return dropUnknownNonDebugMetadata(IDs);
-  }
+  void dropUnknownNonDebugMetadata(ArrayRef<unsigned> KnownIDs = {});
   /// @}
 
   /// Adds an !annotation metadata node with \p Annotation to this instruction.
@@ -1040,7 +1030,7 @@ protected:
     setValueSubclassData(Storage);
   }
 
-  Instruction(Type *Ty, unsigned iType, Use *Ops, unsigned NumOps,
+  Instruction(Type *Ty, unsigned iType, AllocInfo AllocInfo,
               InsertPosition InsertBefore = nullptr);
 
 private:

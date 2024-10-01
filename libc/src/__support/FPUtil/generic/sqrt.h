@@ -14,13 +14,15 @@
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/FPUtil/FEnvImpl.h"
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/FPUtil/cast.h"
 #include "src/__support/FPUtil/dyadic_float.h"
 #include "src/__support/common.h"
+#include "src/__support/macros/config.h"
 #include "src/__support/uint128.h"
 
 #include "hdr/fenv_macros.h"
 
-namespace LIBC_NAMESPACE {
+namespace LIBC_NAMESPACE_DECL {
 namespace fputil {
 
 namespace internal {
@@ -95,7 +97,7 @@ sqrt(InType x) {
       // sqrt(-0) = -0
       // sqrt(NaN) = NaN
       // sqrt(-NaN) = -NaN
-      return static_cast<OutType>(x);
+      return cast<OutType>(x);
     } else if (bits.is_neg()) {
       // sqrt(-Inf) = NaN
       // sqrt(-x) = NaN
@@ -163,6 +165,6 @@ sqrt(InType x) {
 }
 
 } // namespace fputil
-} // namespace LIBC_NAMESPACE
+} // namespace LIBC_NAMESPACE_DECL
 
 #endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_GENERIC_SQRT_H
