@@ -350,9 +350,24 @@ ABIArgInfo RISCVABIInfo::coerceVLSVector(QualType Ty,
     //    * (RVVBitsPerBlock / EltSize)
     ResType = llvm::ScalableVectorType::get(EltType, NumElts / VScale->first);
   } else {
+    // If the corresponding extension is not supported, just make it an i32
+    // vector.
+    const TargetInfo &TI = getContext().getTargetInfo();
+    if ((EltType->isHalfTy() && !TI.hasFeature("zvfhmin")) ||
+        (EltType->isBFloatTy() && !TI.hasFeature("zvfbfmin")) ||
+        (EltType->isFloatTy() && !TI.hasFeature("zve32f")) ||
+        (EltType->isDoubleTy() && !TI.hasFeature("zve64d")) ||
+        (EltType->isIntegerTy(64) && !TI.hasFeature("zve64x")) ||
+        EltType->isIntegerTy(128)) {
+      NumElts = NumElts * EltType->getScalarSizeInBits() / 32;
+      EltType = llvm::Type::getInt32Ty(getVMContext());
+    }
+
     // Generic vector
+    // The number of element need to be at least 1.
     ResType = llvm::ScalableVectorType::get(
-        EltType, NumElts * llvm::RISCV::RVVBitsPerBlock / ArgABIVLen);
+        EltType,
+        llvm::divideCeil(NumElts * llvm::RISCV::RVVBitsPerBlock, ArgABIVLen));
   }
 
   return ABIArgInfo::getDirect(ResType);
