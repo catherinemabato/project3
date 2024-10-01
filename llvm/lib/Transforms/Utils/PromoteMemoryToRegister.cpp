@@ -492,9 +492,9 @@ static void removeIntrinsicUsers(AllocaInst *AI) {
     }
 
     if (!I->getType()->isVoidTy()) {
-      // The only users of this bitcast/GEP instruction are lifetime intrinsics.
-      // Follow the use/def chain to erase them now instead of leaving it for
-      // dead code elimination later.
+      // The only users of this bitcast/GEP instruction are lifetime intrinsics,
+      // fake_use as well as invariant group ones. Follow the use/def chain to
+      // erase them now instead of leaving it for dead code elimination later.
       for (Use &UU : llvm::make_early_inc_range(I->uses())) {
         Instruction *Inst = cast<Instruction>(UU.getUser());
 
