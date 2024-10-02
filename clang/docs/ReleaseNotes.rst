@@ -609,6 +609,8 @@ clang-format
 ------------
 
 - Adds ``BreakBinaryOperations`` option.
+- Adds ``AlignAfterOpenBracketBreak`` sub-options for better control of
+  ``AlignAfterOpenBracket`` with ``AlwaysBreak`` or ``BlockIndent`` modes.
 
 libclang
 --------
