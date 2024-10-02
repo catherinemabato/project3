@@ -474,6 +474,10 @@ Bug Fixes to C++ Support
 - Fixed a bug in constraint expression comparison where the ``sizeof...`` expression was not handled properly
   in certain friend declarations. (#GH93099)
 
+- Emit an error when the same identifier appears with both internal and
+  external linkage in a translation unit Fixes:
+  (`#54215 <https://github.com/llvm/llvm-project/issues/54215>`_)
+
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
