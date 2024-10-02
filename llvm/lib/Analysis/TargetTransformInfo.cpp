@@ -1348,8 +1348,10 @@ bool TargetTransformInfo::hasActiveVectorLength(unsigned Opcode, Type *DataType,
   return TTIImpl->hasActiveVectorLength(Opcode, DataType, Alignment);
 }
 
-unsigned TargetTransformInfo::getNumBytesToPad(unsigned Size) const {
-  return TTIImpl->getNumBytesToPad(Size);
+unsigned
+TargetTransformInfo::getNumBytesToPadGlobalArray(unsigned Size,
+                                                 Type *ArrayType) const {
+  return TTIImpl->getNumBytesToPadGlobalArray(Size, ArrayType);
 }
 
 TargetTransformInfo::Concept::~Concept() = default;

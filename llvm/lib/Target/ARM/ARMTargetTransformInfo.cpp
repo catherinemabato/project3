@@ -2649,8 +2649,14 @@ bool ARMTTIImpl::hasArmWideBranch(bool Thumb) const {
   }
 }
 
-unsigned ARMTTIImpl::getNumBytesToPad(unsigned Size) const {
-  // We pad to 4 byte boundaries;
+unsigned ARMTTIImpl::getNumBytesToPadGlobalArray(unsigned Size,
+                                                 Type *ArrayType) const {
+  // Don't modify none integer array types
+  if (!ArrayType || !ArrayType->isArrayTy() ||
+      !ArrayType->getArrayElementType()->isIntegerTy())
+    return 0;
+
+  // We pad to 4 byte boundaries
   if (Size % 4 == 0)
     return 0;
 
