@@ -262,7 +262,6 @@ class CheckVarsEscapingDeclContext final
                                bool IsCombinedParallelRegion) {
     if (!S)
       return;
-
     for (const CapturedStmt::Capture &C : S->captures()) {
       if (C.capturesVariable() && !C.capturesVariableByCopy()) {
         const ValueDecl *VD = C.getCapturedVar();
@@ -337,7 +336,6 @@ public:
       return;
     if (!D->hasAssociatedStmt())
       return;
-
     if (const auto *S =
             dyn_cast_or_null<CapturedStmt>(D->getAssociatedStmt())) {
       // Do not analyze directives that do not actually require capturing,
@@ -505,23 +503,23 @@ public:
 } // anonymous namespace
 
 /// Get the id of the warp in the block.
-///// We assume that the warp size is 32, which is always the case
-///// on the NVPTX device, to generate more efficient code.
+/// We assume that the warp size is 32, which is always the case
+/// on the NVPTX device, to generate more efficient code.
 static llvm::Value *getNVPTXWarpID(CodeGenFunction &CGF) {
   CGBuilderTy &Bld = CGF.Builder;
   unsigned LaneIDBits =
-    llvm::Log2_32(CGF.getTarget().getGridValue().GV_Warp_Size);
-   auto &RT = static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
-   return Bld.CreateAShr(RT.getGPUThreadID(CGF), LaneIDBits, "nvptx_warp_id");
+      llvm::Log2_32(CGF.getTarget().getGridValue().GV_Warp_Size);
+  auto &RT = static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
+  return Bld.CreateAShr(RT.getGPUThreadID(CGF), LaneIDBits, "nvptx_warp_id");
 }
-               
+ 
 /// Get the id of the current lane in the Warp.
 /// We assume that the warp size is 32, which is always the case
 /// on the NVPTX device, to generate more efficient code.
 static llvm::Value *getNVPTXLaneID(CodeGenFunction &CGF) {
   CGBuilderTy &Bld = CGF.Builder;
   unsigned LaneIDBits =
-    llvm::Log2_32(CGF.getTarget().getGridValue().GV_Warp_Size);
+      llvm::Log2_32(CGF.getTarget().getGridValue().GV_Warp_Size);
   assert(LaneIDBits < 32 && "Invalid LaneIDBits size in NVPTX device.");
   unsigned LaneIDMask = ~0u >> (32u - LaneIDBits);
   auto &RT = static_cast<CGOpenMPRuntimeGPU &>(CGF.CGM.getOpenMPRuntime());
@@ -3502,4 +3500,3 @@ llvm::Value *CGOpenMPRuntimeGPU::getGPUWarpSize(CodeGenFunction &CGF) {
                                  CGM.getModule(), OMPRTL___kmpc_get_warp_size),
                              Args);
 }
-

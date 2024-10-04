@@ -1433,7 +1433,6 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
   
   InsertPointTy DistanceIP(PrologBB, PrologBB->getTerminator()->getIterator());
   assert(DistanceCB && "expected loop trip count callback function!");
-  //Value *DistVal = DistanceCB(EntryBB, DistanceIP);
   Value *DistVal = DistanceCB(OuterAllocaBlock, DistanceIP);
   assert(DistVal && "trip count call back should return integer trip count");
   Type *DistValType = DistVal->getType();
@@ -1444,15 +1443,12 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
 
   // Create the virtual iteration variable that will be pulled into
   // the outlined function.
-  //Builder.restoreIP(OuterAllocaIP);
   Builder.SetInsertPoint(EntryBB, EntryBB->begin());
   AllocaInst *OMPIVAlloca = Builder.CreateAlloca(DistValType, nullptr, "omp.iv.tmp");
   Instruction *OMPIV = Builder.CreateLoad(DistValType, OMPIVAlloca, "omp.iv");
-  //InsertPointTy MidAllocaIP = Builder.saveIP();
 
   // Generate the privatization allocas in the block that will become the entry
   // of the outlined function.
-//  Builder.SetInsertPoint(LoopEntryBB->getTerminator());
   Builder.SetInsertPoint(LoopEntryBB, LoopEntryBB->begin());
   // Use omp.iv in the outlined region so it gets captured during the outline
   Instruction *OMPIVUse = dyn_cast<Instruction>(
@@ -1469,7 +1465,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
 
   LLVM_DEBUG(dbgs() << "Before body codegen:\n" << *OuterFn << "\n");
   assert(BodyGenCB && "Expected body generation callback!");
-  InsertPointTy CodeGenIP(LoopBodyBB, LoopBodyBB->getTerminator()->getIterator()); //LoopBodyBB->begin());
+  InsertPointTy CodeGenIP(LoopBodyBB, LoopBodyBB->getTerminator()->getIterator()); 
 
   InsertPointTy PrologIP(PrologBB, PrologBB->getTerminator()->getIterator());
   InsertPointTy ReductionEpilogIP(ReductionEpilogBB, ReductionEpilogBB->begin());
@@ -1490,33 +1486,18 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
   {
     OutlineInfo OI;
 
-    // Adjust the finalization stack, verify the adjustment, and call the
-    // finalize function a last time to finalize values between the pre-fini
-    // block and the exit block if we left the parallel "the normal way".
-    //auto FiniInfo = FinalizationStack.pop_back_val();
-    //(void)FiniInfo;
-    //assert(FiniInfo.DK == OMPD_simd && 
-    //       "Unexpected finalization stack state!");
-
     Instruction *LoopPreFiniTI = LoopPreFiniBB->getTerminator();
 
     InsertPointTy PreFiniIP(LoopPreFiniBB, LoopPreFiniTI->getIterator());
     FiniCB(PreFiniIP);
 
-    OI.OuterAllocaBB = EntryBB; //OuterAllocaBlock;
+    OI.OuterAllocaBB = EntryBB;
     OI.EntryBB = LoopEntryBB;
     OI.ExitBB = LoopExitBB;
 
     SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
     SmallVector<BasicBlock *, 32> Blocks;
     OI.collectBlocks(ParallelRegionBlockSet, Blocks);
-
-    // Ensure a single exit node for the outlined region by creating one.
-    // We might have multiple incoming edges to the exit now due to finalizations,
-    // e.g., cancel calls that cause the control flow to leave the region.
-    //BasicBlock *PRegOutlinedExitBB = PRegExitBB;
-    //PRegExitBB = LRegExitBB;
-    //PRegOutlinedExitBB->setName("omp.loop.outlined.exit");
 
     Blocks.push_back(LoopExitBB);
 
@@ -1606,7 +1587,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
 
     LLVM_DEBUG(dbgs() << "After  privatization: " << *OuterFn << "\n");
     for (auto *BB : Blocks) {
-      LLVM_DEBUG(dbgs() << " PBR: " << BB->getName() << "\n");
+      dbgs() << " PBR: " << BB->getName() << "\n";
     }
 
     int NumInputs = Inputs.size()-1; // One argument is always omp.iv
@@ -1657,8 +1638,8 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
     OutlineInfo OI;
 
     OI.OuterAllocaBB = OuterAllocaBlock;
-    OI.EntryBB = EntryBB; //LoopEntryBB;
-    OI.ExitBB = FinalizeBB; //LoopExitBB;
+    OI.EntryBB = EntryBB;
+    OI.ExitBB = FinalizeBB;
 
     SmallPtrSet<BasicBlock *, 32> ParallelRegionBlockSet;
     SmallVector<BasicBlock *, 32> Blocks;
@@ -1682,12 +1663,6 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
     Extractor.findInputsOutputs(Inputs, Outputs, SinkingCands);
 
     auto PrivHelper = [&](Value &V) {
-      // Exclude omp.iv from aggregate
-      //if (&V == OMPIV) {
-      //  OI.ExcludeArgsFromAggregate.push_back(&V);
-      //  return;
-      //}
-
       // Get all uses of value that are inside of the outlined region
       SetVector<Use *> Uses;
       for (Use &U : V.uses())
@@ -1795,11 +1770,7 @@ IRBuilder<>::InsertPoint OpenMPIRBuilder::createSimdLoop(
     addOutlineInfo(std::move(OI));
   }
 
-
-
-
-
-  InsertPointTy AfterIP(FinalizeBB, FinalizeBB->end()); //UI->getParent(), UI->getParent()->end());
+  InsertPointTy AfterIP(FinalizeBB, FinalizeBB->end());
   UI->eraseFromParent();
 
   return AfterIP;
@@ -8492,7 +8463,6 @@ void OpenMPIRBuilder::createOffloadEntriesAndInfoMetadata(
       [&C, MD, &OrderedEntries, &GetMDInt, &GetMDString](
           const TargetRegionEntryInfo &EntryInfo,
           const OffloadEntriesInfoManager::OffloadEntryInfoTargetRegion &E) {
-
         // Generate metadata for target regions. Each entry of this metadata
         // contains:
         // - Entry 0 -> Kind of this type of metadata (0).
@@ -8917,7 +8887,6 @@ bool OffloadEntriesInfoManager::empty() const {
 
 unsigned OffloadEntriesInfoManager::getTargetRegionEntryInfoCount(
     const TargetRegionEntryInfo &EntryInfo) const {
-
   auto It = OffloadEntriesTargetRegionCount.find(
       getTargetRegionEntryCountKey(EntryInfo));
   if (It == OffloadEntriesTargetRegionCount.end())
@@ -8927,7 +8896,6 @@ unsigned OffloadEntriesInfoManager::getTargetRegionEntryInfoCount(
 
 void OffloadEntriesInfoManager::incrementTargetRegionEntryInfoCount(
     const TargetRegionEntryInfo &EntryInfo) {
-
   OffloadEntriesTargetRegionCount[getTargetRegionEntryCountKey(EntryInfo)] =
       EntryInfo.Count + 1;
 }
@@ -8935,7 +8903,6 @@ void OffloadEntriesInfoManager::incrementTargetRegionEntryInfoCount(
 /// Initialize target region entry.
 void OffloadEntriesInfoManager::initializeTargetRegionEntryInfo(
     const TargetRegionEntryInfo &EntryInfo, unsigned Order) {
-
   OffloadEntriesTargetRegion[EntryInfo] =
       OffloadEntryInfoTargetRegion(Order, /*Addr=*/nullptr, /*ID=*/nullptr,
                                    OMPTargetRegionEntryTargetRegion);
@@ -8945,7 +8912,6 @@ void OffloadEntriesInfoManager::initializeTargetRegionEntryInfo(
 void OffloadEntriesInfoManager::registerTargetRegionEntryInfo(
     TargetRegionEntryInfo EntryInfo, Constant *Addr, Constant *ID,
     OMPTargetRegionEntryKind Flags) {
-
   assert(EntryInfo.Count == 0 && "expected default EntryInfo");
 
   // Update the EntryInfo with the next available count for this location.
@@ -8993,7 +8959,6 @@ bool OffloadEntriesInfoManager::hasTargetRegionEntryInfo(
 
 void OffloadEntriesInfoManager::actOnTargetRegionEntriesInfo(
     const OffloadTargetRegionEntryInfoActTy &Action) {
-
   // Scan all target region entries and perform the provided action.
   for (const auto &It : OffloadEntriesTargetRegion) {
     Action(It.first, It.second);
