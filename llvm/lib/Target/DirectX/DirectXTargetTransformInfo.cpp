@@ -18,6 +18,8 @@ bool llvm::DirectXTTIImpl::isTargetIntrinsicTriviallyScalarizable(
   switch (ID) {
   case Intrinsic::dx_frac:
   case Intrinsic::dx_rsqrt:
+  case Intrinsic::dx_firstbituhigh:
+  case Intrinsic::dx_firstbitshigh:
     return true;
   default:
     return false;
