@@ -1885,7 +1885,7 @@ bool SemaHLSL::CheckBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     if (auto *VecTy = EltTy->getAs<VectorType>())
       EltTy = VecTy->getElementType();
 
-    if (!EltTy->isIntegerType()) {
+    if (!EltTy->isIntegerType() || getASTContext().getTypeSize(EltTy) != 32) {
       Diag(Arg->getBeginLoc(), diag::err_builtin_invalid_arg_type)
           << 1 << /* integer ty */ 6 << ArgTy;
       return true;

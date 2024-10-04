@@ -17,12 +17,20 @@ double test_int_builtin(double p0) {
 
 double2 test_int_builtin_2(double2 p0) {
   return __builtin_hlsl_elementwise_firstbithigh(p0);
-  // expected-error@-1 {{1st argument must be a vector of integers
-  // (was 'double2' (aka 'vector<double, 2>'))}}
+  // expected-error@-1 {{1st argument must be a vector of integers (was 'double2' (aka 'vector<double, 2>'))}}
 }
 
 float test_int_builtin_3(float p0) {
   return __builtin_hlsl_elementwise_firstbithigh(p0);
-  // expected-error@-1 {{1st argument must be a vector of integers
-  // (was 'float')}}
+  // expected-error@-1 {{1st argument must be a vector of integers (was 'double')}}
+}
+
+int16_t test_int_builtin_4(int16_t p0) {
+  return firstbithigh(p0);
+  // expected-error@-1 {{call to 'firstbithigh' is ambiguous}}
+}
+
+int64_t test_int_builtin_5(int64_t p0) {
+  return __builtin_hlsl_elementwise_firstbithigh(p0);
+  // expected-error@-1 {{1st argument must be a vector of integers (was 'int64_t' (aka 'long'))}}
 }
