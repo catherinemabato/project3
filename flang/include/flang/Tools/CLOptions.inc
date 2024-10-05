@@ -336,8 +336,8 @@ inline void createDefaultFIROptimizerPassPipeline(
 /// \param pm - MLIR pass manager that will hold the pipeline definition
 /// \param optLevel - optimization level used for creating FIR optimization
 ///   passes pipeline
-inline void createHLFIRToFIRPassPipeline(
-    mlir::PassManager &pm, llvm::OptimizationLevel optLevel = defaultOptLevel) {
+inline void createHLFIRToFIRPassPipeline(mlir::PassManager &pm,
+    bool enableOpenMP, llvm::OptimizationLevel optLevel = defaultOptLevel) {
   if (optLevel.isOptimizingForSpeed()) {
     addCanonicalizerPassWithoutRegionSimplification(pm);
     addNestedPassToAllTopLevelOperations(
@@ -354,6 +354,8 @@ inline void createHLFIRToFIRPassPipeline(
   pm.addPass(hlfir::createLowerHLFIRIntrinsics());
   pm.addPass(hlfir::createBufferizeHLFIR());
   pm.addPass(hlfir::createConvertHLFIRtoFIR());
+  if (enableOpenMP)
+    pm.addPass(flangomp::createLowerWorkshare());
 }
 
 /// Create a pass pipeline for handling certain OpenMP transformations needed
@@ -425,7 +427,7 @@ inline void createDefaultFIRCodeGenPassPipeline(mlir::PassManager &pm,
 ///   passes pipeline
 inline void createMLIRToLLVMPassPipeline(mlir::PassManager &pm,
     MLIRToLLVMPassPipelineConfig &config, llvm::StringRef inputFilename = {}) {
-  fir::createHLFIRToFIRPassPipeline(pm, config.OptLevel);
+  fir::createHLFIRToFIRPassPipeline(pm, config.EnableOpenMP, config.OptLevel);
 
   // Add default optimizer pass pipeline.
   fir::createDefaultFIROptimizerPassPipeline(pm, config);
