@@ -14494,32 +14494,40 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
   // is costly to materealize as compared to f64 ldexp
   // so here we undo the transform for f64 as follows :
   //
-  // fmul x, (select y, 2.0, 1.0) -> ldexp(x, zext(i1 y))
-  // fmul x, (select y, 0.5, 1.0) -> ldexp(x, sext(i1 y))
-  // TODO : Need to handle vector of f64 type.
+  // fmul x, (select y, 2.0, 1.0)   -> ldexp(  x, zext(i1 y) )
+  // fmul x, (select y, -2.0, -1.0) -> ldexp( (fneg x), zext(i1 y) )
+  // fmul x, (select y, 0.5, 1.0)   -> ldexp(  x, sext(i1 y) )
+  // fmul x, (select y, -0.5, -1.0) -> ldexp( (fneg x), sext(i1 y) )
   if (VT == MVT::f64) {
     if (RHS.hasOneUse() && RHS.getOpcode() == ISD::SELECT) {
       const ConstantFPSDNode *TrueNode =
-          dyn_cast<ConstantFPSDNode>(RHS.getOperand(1));
+          isConstOrConstSplatFP(RHS.getOperand(1));
       const ConstantFPSDNode *FalseNode =
-          dyn_cast<ConstantFPSDNode>(RHS.getOperand(2));
+          isConstOrConstSplatFP(RHS.getOperand(2));
+      bool isNeg;
 
       if (!TrueNode || !FalseNode)
         return SDValue();
 
-      const double TrueVal = TrueNode->getValueAPF().convertToDouble();
-      const double FalseVal = FalseNode->getValueAPF().convertToDouble();
-      unsigned ExtOp;
+      if (TrueNode->isNegative() && FalseNode->isNegative())
+        isNeg = true;
+      else if (!TrueNode->isNegative() && !FalseNode->isNegative())
+        isNeg = false;
+      else
+        return SDValue();
 
-      if (FalseVal == 1.0) {
-        if (TrueVal == 2.0)
+      unsigned ExtOp;
+      if (FalseNode->isExactlyValue(1.0) || FalseNode->isExactlyValue(-1.0)) {
+        if (TrueNode->isExactlyValue(2.0) || TrueNode->isExactlyValue(-2.0))
           ExtOp = ISD::ZERO_EXTEND;
-        else if (TrueVal == 0.5)
+        else if (TrueNode->isExactlyValue(0.5) ||
+                 TrueNode->isExactlyValue(-0.5))
           ExtOp = ISD::SIGN_EXTEND;
         else
           return SDValue();
 
         SDValue ExtNode = DAG.getNode(ExtOp, SL, MVT::i32, RHS.getOperand(0));
+        LHS = isNeg ? DAG.getNode(ISD::FNEG, SL, VT, LHS) : LHS;
         return DAG.getNode(ISD::FLDEXP, SL, MVT::f64, LHS, ExtNode);
       }
     }
