@@ -4547,7 +4547,7 @@ void Parser::ParseDeclarationSpecifiers(
       isInvalid = DS.SetTypeSpecType(DeclSpec::TST_int128, Loc, PrevSpec,
                                      DiagID, Policy);
       break;
-    case tok::kw___mfp8: // AARCH64_OPAQUE_TYPE
+    case tok::kw___mfp8:
       isInvalid = DS.SetTypeSpecType(DeclSpec::TST_ArmMFloat8_t, Loc, PrevSpec,
                                      DiagID, Policy);
       break;

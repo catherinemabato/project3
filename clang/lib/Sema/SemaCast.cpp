@@ -2986,8 +2986,7 @@ void CastOperation::CheckCStyleCast() {
     return;
   }
 
-  if ((DestType->isArmMFloat8Type() && !SrcType->isArmMFloat8Type()) ||
-      (!DestType->isArmMFloat8Type() && SrcType->isArmMFloat8Type())) {
+  if (DestType->isArmMFloat8Type() != SrcType->isArmMFloat8Type()) {
     Self.Diag(SrcExpr.get()->getExprLoc(), diag::err_bad_mfloat8_cast)
         << SrcType << DestType << SrcExpr.get()->getSourceRange();
     SrcExpr = ExprError();

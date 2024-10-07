@@ -1375,7 +1375,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
     Result = Context.SingletonId;                                              \
     break;
 #include "clang/Basic/HLSLIntangibleTypes.def"
-  case DeclSpec::TST_ArmMFloat8_t: // AARCH64_OPAQUE_TYPE
+  case DeclSpec::TST_ArmMFloat8_t:
     if (!S.Context.getTargetInfo().hasArmMFloat8Type())
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__mfp8";
     Result = Context.ArmMFloat8Ty;

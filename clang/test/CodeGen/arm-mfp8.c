@@ -3,18 +3,18 @@
 
 // REQUIRES: aarch64-registered-target
 
-// CHECK-LABEL: define dso_local i8 @func1n(
-// CHECK-SAME: i8 [[MFP8:%.*]]) #[[ATTR0:[0-9]+]] {
+// CHECK-LABEL: define dso_local <1 x i8> @func1n(
+// CHECK-SAME: <1 x i8> [[MFP8:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[MFP8_ADDR:%.*]] = alloca i8, align 1
-// CHECK-NEXT:    [[F1N:%.*]] = alloca [10 x i8], align 1
-// CHECK-NEXT:    store i8 [[MFP8]], ptr [[MFP8_ADDR]], align 1
-// CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[MFP8_ADDR]], align 1
-// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [10 x i8], ptr [[F1N]], i64 0, i64 2
-// CHECK-NEXT:    store i8 [[TMP0]], ptr [[ARRAYIDX]], align 1
-// CHECK-NEXT:    [[ARRAYIDX1:%.*]] = getelementptr inbounds [10 x i8], ptr [[F1N]], i64 0, i64 2
-// CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX1]], align 1
-// CHECK-NEXT:    ret i8 [[TMP1]]
+// CHECK-NEXT:    [[MFP8_ADDR:%.*]] = alloca <1 x i8>, align 1
+// CHECK-NEXT:    [[F1N:%.*]] = alloca [10 x <1 x i8>], align 1
+// CHECK-NEXT:    store <1 x i8> [[MFP8]], ptr [[MFP8_ADDR]], align 1
+// CHECK-NEXT:    [[TMP0:%.*]] = load <1 x i8>, ptr [[MFP8_ADDR]], align 1
+// CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [10 x <1 x i8>], ptr [[F1N]], i64 0, i64 2
+// CHECK-NEXT:    store <1 x i8> [[TMP0]], ptr [[ARRAYIDX]], align 1
+// CHECK-NEXT:    [[ARRAYIDX1:%.*]] = getelementptr inbounds [10 x <1 x i8>], ptr [[F1N]], i64 0, i64 2
+// CHECK-NEXT:    [[TMP1:%.*]] = load <1 x i8>, ptr [[ARRAYIDX1]], align 1
+// CHECK-NEXT:    ret <1 x i8> [[TMP1]]
 //
 __mfp8 func1n(__mfp8 mfp8) {
   __mfp8 f1n[10];

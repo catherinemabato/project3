@@ -2644,7 +2644,7 @@ public:
   bool isQueueT() const;                        // OpenCL queue_t
   bool isReserveIDT() const;                    // OpenCL reserve_id_t
 
-  bool isArmMFloat8Type() const; // AARCH64_OPAQUE_TYPE
+  bool isArmMFloat8Type() const;
 
 #define EXT_OPAQUE_TYPE(ExtType, Id, Ext) \
   bool is##Id##Type() const;
@@ -8314,7 +8314,6 @@ inline bool Type::isBitIntType() const {
   return isa<BitIntType>(CanonicalType);
 }
 
-// AARCH64_OPAQUE_TYPE
 inline bool Type::isArmMFloat8Type() const {
   return isSpecificBuiltinType(BuiltinType::ArmMFloat8);
 }
