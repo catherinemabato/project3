@@ -237,8 +237,8 @@ void addMCModel(const Driver &D, const llvm::opt::ArgList &Args,
 void handleColorDiagnosticsArgs(const Driver &D, const llvm::opt::ArgList &Args,
                                 llvm::opt::ArgStringList &CmdArgs);
 
-void renderIntegerOverflowOptions(const llvm::opt::ArgList &Args,
-                                  llvm::opt::ArgStringList &CmdArgs);
+void renderCommonIntegerOverflowOptions(const llvm::opt::ArgList &Args,
+                                        llvm::opt::ArgStringList &CmdArgs);
 
 } // end namespace tools
 } // end namespace driver

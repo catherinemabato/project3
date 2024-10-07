@@ -2980,8 +2980,8 @@ void tools::handleColorDiagnosticsArgs(const Driver &D, const ArgList &Args,
     CmdArgs.push_back("-fcolor-diagnostics");
 }
 
-void tools::renderIntegerOverflowOptions(const ArgList &Args,
-                                         ArgStringList &CmdArgs) {
+void tools::renderCommonIntegerOverflowOptions(const ArgList &Args,
+                                               ArgStringList &CmdArgs) {
   // -fno-strict-overflow implies -fwrapv if it isn't disabled, but
   // -fstrict-overflow won't turn off an explicitly enabled -fwrapv.
   if (Arg *A = Args.getLastArg(options::OPT_fwrapv, options::OPT_fno_wrapv)) {
