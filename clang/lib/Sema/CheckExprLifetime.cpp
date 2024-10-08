@@ -50,7 +50,7 @@ enum LifetimeKind {
   /// object to it.
   LK_Assignment,
 
-  /// The lifetime of a temporary bound to this entity probably ends too soon,
+  /// The lifetime of a temporary bound to this entity may end too soon,
   /// because the entity may capture the reference to a temporary object.
   LK_LifetimeCapture,
 };
@@ -1202,7 +1202,7 @@ static void checkExprLifetimeImpl(Sema &SemaRef,
         return false;
       assert(shouldLifetimeExtendThroughPath(Path) ==
                  PathLifetimeKind::NoExtend &&
-             "No lifetime extension for in function calls");
+             "No lifetime extension in function calls");
       SemaRef.Diag(DiagLoc, diag::warn_dangling_reference_captured)
           << CEntity->Expression << DiagRange;
       return false;
@@ -1434,13 +1434,6 @@ void checkInitLifetime(Sema &SemaRef, const InitializedEntity &Entity,
   checkExprLifetimeImpl(SemaRef, &Entity, ExtendingEntity, LK,
                         /*AEntity*/ nullptr, Init);
 }
-
-void checkExprLifetimeMustTailArg(Sema &SemaRef,
-                                  const InitializedEntity &Entity, Expr *Init) {
-  checkExprLifetimeImpl(SemaRef, &Entity, nullptr, LK_MustTail,
-                        /*AEntity*/ nullptr, Init);
-}
-
 
 void checkAssignmentLifetime(Sema &SemaRef, const CapturingEntity &Entity,
                              Expr *RHS) {

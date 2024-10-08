@@ -1910,21 +1910,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
   if (T->getAttrKind() == attr::LifetimeCaptureBy) {
+    // FIXME: Print the attribute arguments once we have a way to retrieve these
+    // here.
     OS << " [[clang::lifetime_capture_by(...)";
-    // const LifetimeCaptureByAttr* A= T->getAs<LifetimeCaptureByAttr>();
-    // bool valid = true;
-    // for (int I : A->params())
-    //   valid &= I != -2;
-    // if (valid) {
-    //   OS << "invalid)";
-    //   return;
-    // }
-    // for (size_t I = 0; I < A->params_size(); ++I) {
-    //   OS << A->getArgIdents()[I]->getName()
-    //      << "(idx: " << *(A->params_begin() + I) << ")";
-    //   if (I != A->params_size() - 1)
-    //     OS << ", ";
-    // }
     return;
   }
 

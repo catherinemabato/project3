@@ -380,7 +380,6 @@ void use() {
 
   std::string_view local_sv;
   captureSV(local_sv, s);
-  captureSV(local_sv + local_sv, s);
   captureSV(std::string(), // expected-warning {{object captured by the 's'}}
             s);
   captureSV(substr(
