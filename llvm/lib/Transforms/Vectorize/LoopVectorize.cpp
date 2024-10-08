@@ -173,6 +173,8 @@ const char LLVMLoopVectorizeFollowupEpilogue[] =
 STATISTIC(LoopsVectorized, "Number of loops vectorized");
 STATISTIC(LoopsAnalyzed, "Number of loops analyzed for vectorization");
 STATISTIC(LoopsEpilogueVectorized, "Number of epilogues vectorized");
+STATISTIC(CSAsVectorized,
+          "Number of conditional scalar assignments vectorized");
 
 static cl::opt<bool> EnableEpilogueVectorization(
     "enable-epilogue-vectorization", cl::init(true), cl::Hidden,
@@ -496,6 +498,10 @@ public:
   /// look up SCEV expansions for expressions needed during skeleton creation.
   virtual std::pair<BasicBlock *, Value *>
   createVectorizedLoopSkeleton(const SCEV2ValueTy &ExpandedSCEVs);
+
+  /// For all vectorized CSAs, replace uses of live-out scalar from the orignal
+  /// loop with the extracted scalar from the vector loop for.
+  void fixCSALiveOuts(VPTransformState &State, VPlan &Plan);
 
   /// Fix the vectorized code, taking care of header phi's, live-outs, and more.
   void fixVectorizedLoop(VPTransformState &State, VPlan &Plan);
@@ -2883,6 +2889,25 @@ LoopVectorizationCostModel::getVectorIntrinsicCost(CallInst *CI,
                                    TargetTransformInfo::TCK_RecipThroughput);
 }
 
+void InnerLoopVectorizer::fixCSALiveOuts(VPTransformState &State, VPlan &Plan) {
+  for (const auto &CSA : Plan.getCSAStates()) {
+    VPCSADataUpdateRecipe *VPDataUpdate = CSA.second->getDataUpdate();
+    assert(VPDataUpdate &&
+           "VPDataUpdate must have been introduced prior to fixing live outs");
+    Value *V = VPDataUpdate->getUnderlyingValue();
+    Value *ExtractedScalar =
+        State.get(CSA.second->getExtractScalarRecipe(), /*NeedsScalar=*/true);
+    // Fix LCSSAPhis
+    llvm::SmallPtrSet<PHINode *, 2> ToFix;
+    for (User *U : V->users())
+      if (auto *Phi = dyn_cast<PHINode>(U);
+          Phi && Phi->getParent() == LoopExitBlock)
+        ToFix.insert(Phi);
+    for (PHINode *Phi : ToFix)
+      Phi->addIncoming(ExtractedScalar, LoopMiddleBlock);
+  }
+}
+
 void InnerLoopVectorizer::fixVectorizedLoop(VPTransformState &State,
                                             VPlan &Plan) {
   // Fix widened non-induction PHIs by setting up the PHI operands.
@@ -2919,6 +2944,7 @@ void InnerLoopVectorizer::fixVectorizedLoop(VPTransformState &State,
       fixupIVUsers(Entry.first, Entry.second,
                    getOrCreateVectorTripCount(nullptr),
                    IVEndValues[Entry.first], LoopMiddleBlock, Plan, State);
+    fixCSALiveOuts(State, Plan);
   }
 
   // Fix live-out phis not already fixed earlier.
@@ -4436,6 +4462,9 @@ static bool willGenerateVectors(VPlan &Plan, ElementCount VF,
       case VPDef::VPEVLBasedIVPHISC:
       case VPDef::VPPredInstPHISC:
       case VPDef::VPBranchOnMaskSC:
+      case VPRecipeBase::VPCSADataUpdateSC:
+      case VPRecipeBase::VPCSAExtractScalarSC:
+      case VPRecipeBase::VPCSAHeaderPHISC:
         continue;
       case VPDef::VPReductionSC:
       case VPDef::VPActiveLaneMaskPHISC:
@@ -7282,9 +7311,17 @@ InstructionCost LoopVectorizationPlanner::cost(VPlan &Plan,
 /// not have corresponding recipes in \p Plan and are not marked to be ignored
 /// in \p CostCtx. This means the VPlan contains simplification that the legacy
 /// cost-model did not account for.
-static bool planContainsAdditionalSimplifications(VPlan &Plan,
-                                                  VPCostContext &CostCtx,
-                                                  Loop *TheLoop) {
+static bool
+planContainsAdditionalSimplifications(VPlan &Plan, VPCostContext &CostCtx,
+                                      Loop *TheLoop,
+                                      LoopVectorizationLegality &Legal) {
+  // CSA cost is more complicated since there is significant overhead in the
+  // preheader and middle block. It also contains recipes that are not backed by
+  // underlying instructions in the original loop. This makes it difficult to
+  // model in the legacy cost model.
+  if (!Legal.getCSAs().empty())
+    return true;
+
   // First collect all instructions for the recipes in Plan.
   auto GetInstructionForCost = [](const VPRecipeBase *R) -> Instruction * {
     if (auto *S = dyn_cast<VPSingleDefRecipe>(R))
@@ -7391,7 +7428,7 @@ VectorizationFactor LoopVectorizationPlanner::computeBestVF() {
   precomputeCosts(BestPlan, BestFactor.Width, CostCtx);
   assert((BestFactor.Width == LegacyVF.Width ||
           planContainsAdditionalSimplifications(getPlanFor(BestFactor.Width),
-                                                CostCtx, OrigLoop)) &&
+                                                CostCtx, OrigLoop, *Legal)) &&
          " VPlan cost model and legacy cost model disagreed");
   assert((BestFactor.Width.isScalar() || BestFactor.ScalarCost > 0) &&
          "when vectorizing, the scalar cost must be computed.");
@@ -8550,9 +8587,6 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
       return Recipe;
 
     VPHeaderPHIRecipe *PhiRecipe = nullptr;
-    assert((Legal->isReductionVariable(Phi) ||
-            Legal->isFixedOrderRecurrence(Phi)) &&
-           "can only widen reductions and fixed-order recurrences here");
     VPValue *StartV = Operands[0];
     if (Legal->isReductionVariable(Phi)) {
       const RecurrenceDescriptor &RdxDesc =
@@ -8562,12 +8596,23 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
       PhiRecipe = new VPReductionPHIRecipe(Phi, RdxDesc, *StartV,
                                            CM.isInLoopReduction(Phi),
                                            CM.useOrderedReductions(RdxDesc));
-    } else {
+    } else if (Legal->isFixedOrderRecurrence(Phi)) {
       // TODO: Currently fixed-order recurrences are modeled as chains of
       // first-order recurrences. If there are no users of the intermediate
       // recurrences in the chain, the fixed order recurrence should be modeled
       // directly, enabling more efficient codegen.
       PhiRecipe = new VPFirstOrderRecurrencePHIRecipe(Phi, *StartV);
+    } else if (Legal->isCSAPhi(Phi)) {
+      VPCSAState *State = Plan.getCSAStates().find(Phi)->second;
+      VPValue *InitData = State->getVPInitData();
+      // When the VF=getFixed(1), InitData is just InitScalar.
+      if (!InitData)
+        InitData = State->getVPInitScalar();
+      PhiRecipe = new VPCSAHeaderPHIRecipe(Phi, InitData);
+      State->setPhiRecipe(cast<VPCSAHeaderPHIRecipe>(PhiRecipe));
+    } else {
+      llvm_unreachable(
+          "can only widen reductions, fixed-order recurrences, and CSAs here");
     }
 
     PhisToFix.push_back(PhiRecipe);
@@ -8601,6 +8646,19 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
                                 make_range(Operands.begin(), Operands.end()));
 
   if (auto *SI = dyn_cast<SelectInst>(Instr)) {
+    auto *CSADescIt = find_if(Legal->getCSAs(), [&](auto CSA) {
+      return CSADescriptor::isCSASelect(CSA.second, SI);
+    });
+    if (CSADescIt != Legal->getCSAs().end()) {
+      PHINode *CSAPhi = CSADescIt->first;
+      VPCSAState *State = Plan.getCSAStates().find(CSAPhi)->second;
+      VPValue *VPDataPhi = State->getPhiRecipe();
+      auto *R = new VPCSADataUpdateRecipe(
+          SI, {VPDataPhi, Operands[0], Operands[1], Operands[2]});
+      State->setDataUpdate(R);
+      return R;
+    }
+
     return new VPWidenSelectRecipe(
         *SI, make_range(Operands.begin(), Operands.end()));
   }
@@ -8611,6 +8669,103 @@ VPRecipeBuilder::tryToCreateWidenRecipe(Instruction *Instr,
   }
 
   return tryToWiden(Instr, Operands, VPBB);
+}
+
+/// Add CSA Recipes that can occur before each instruction in the input IR
+/// is processed and introduced into VPlan.
+static void
+addCSAPreprocessRecipes(const LoopVectorizationLegality::CSAList &CSAs,
+                        Loop *OrigLoop, VPBasicBlock *PreheaderVPBB,
+                        VPBasicBlock *HeaderVPBB, DebugLoc DL, VFRange &Range,
+                        VPlan &Plan) {
+
+  // Don't build full CSA for VF=ElementCount::getFixed(1)
+  bool IsScalarVF = LoopVectorizationPlanner::getDecisionAndClampRange(
+      [&](ElementCount VF) { return VF.isScalar(); }, Range);
+
+  for (const auto &CSA : CSAs) {
+    VPValue *VPInitScalar = Plan.getOrAddLiveIn(
+        CSA.first->getIncomingValueForBlock(OrigLoop->getLoopPreheader()));
+
+    // Scalar VF builds the scalar version of the loop. In that case,
+    // no maintenence of mask nor extraction in middle block is needed.
+    if (IsScalarVF) {
+      VPCSAState *S = new VPCSAState(VPInitScalar);
+      Plan.addCSAState(CSA.first, S);
+      continue;
+    }
+
+    VPBuilder PHB(PreheaderVPBB);
+    auto *VPInitMask = PHB.createCSAInitMask(DL, "csa.init.mask");
+    auto *VPInitData = PHB.createCSAInitData(VPInitScalar, DL, "csa.init.data");
+
+    VPBuilder HB(HeaderVPBB);
+    auto *VPMaskPhi = HB.createCSAMaskPhi(VPInitMask, DL, "csa.mask.phi");
+
+    auto *S = new VPCSAState(VPInitScalar, VPInitData, VPMaskPhi);
+    Plan.addCSAState(CSA.first, S);
+  }
+}
+
+/// Add CSA Recipes that must occur after each instruction in the input IR
+/// is processed and introduced into VPlan.
+static void
+addCSAPostprocessRecipes(VPRecipeBuilder &RecipeBuilder,
+                         const LoopVectorizationLegality::CSAList &CSAs,
+                         VPBasicBlock *MiddleVPBB, DebugLoc DL, VFRange &Range,
+                         VPlan &Plan) {
+  // Don't build CSA for VF=ElementCount::getFixed(1)
+  if (LoopVectorizationPlanner::getDecisionAndClampRange(
+          [&](ElementCount VF) { return VF.isScalar(); }, Range))
+    return;
+
+  for (const auto &CSA : CSAs) {
+    VPCSAState *CSAState = Plan.getCSAStates().find(CSA.first)->second;
+    VPCSADataUpdateRecipe *VPDataUpdate = CSAState->getDataUpdate();
+
+    assert(VPDataUpdate &&
+           "VPDataUpdate must have been introduced prior to postprocess");
+    assert(CSA.second.getCond() &&
+           "CSADescriptor must know how to describe the condition");
+    auto GetVPValue = [&](Value *I) {
+      return RecipeBuilder.getRecipe(cast<Instruction>(I))->getVPSingleValue();
+    };
+    VPValue *WidenedCond = GetVPValue(CSA.second.getCond());
+    VPValue *VPInitScalar = CSAState->getVPInitScalar();
+
+    // The CSA optimization wants to use a condition such that when it is
+    // true, a new value is assigned. However, it is possible that a true lane
+    // in WidenedCond corresponds to selection of the initial value instead.
+    // In that case, we must use the negation of WidenedCond.
+    // i.e. select cond new_val old_val versus select cond.not old_val new_val
+    VPValue *CondToUse = WidenedCond;
+    VPBuilder B;
+    if (cast<SelectInst>(CSA.second.getAssignment())->getTrueValue() ==
+        CSA.first) {
+      auto *VPNotCond = B.createNot(WidenedCond, DL);
+      VPNotCond->insertBefore(
+          GetVPValue(CSA.second.getAssignment())->getDefiningRecipe());
+      CondToUse = VPNotCond;
+    }
+
+    auto *VPAnyActive =
+        B.createCSAAnyActive(CondToUse, DL, "csa.cond.anyactive");
+    VPAnyActive->insertBefore(
+        GetVPValue(CSA.second.getAssignment())->getDefiningRecipe());
+
+    auto *VPMaskSel = B.createCSAMaskSel(CondToUse, CSAState->getVPMaskPhi(),
+                                         VPAnyActive, DL, "csa.mask.sel");
+    VPMaskSel->insertAfter(VPAnyActive);
+    VPDataUpdate->setVPNewMaskAndVPAnyActive(VPMaskSel, VPAnyActive);
+    VPCSAExtractScalarRecipe *ExtractScalarRecipe =
+        new VPCSAExtractScalarRecipe({VPInitScalar, VPMaskSel, VPDataUpdate});
+
+    MiddleVPBB->insert(ExtractScalarRecipe, MiddleVPBB->getFirstNonPhi());
+
+    // Update CSAState with new recipes
+    CSAState->setExtractScalarRecipe(ExtractScalarRecipe);
+    CSAState->setVPAnyActive(VPAnyActive);
+  }
 }
 
 void LoopVectorizationPlanner::buildVPlansWithVPRecipes(ElementCount MinVF,
@@ -8670,7 +8825,8 @@ static void addCanonicalIVRecipes(VPlan &Plan, Type *IdxTy, bool HasNUW,
 // increments.
 static SetVector<VPIRInstruction *> collectUsersInExitBlock(
     Loop *OrigLoop, VPRecipeBuilder &Builder, VPlan &Plan,
-    const MapVector<PHINode *, InductionDescriptor> &Inductions) {
+    const MapVector<PHINode *, InductionDescriptor> &Inductions,
+    const MapVector<PHINode *, CSADescriptor> &CSAs) {
   auto *MiddleVPBB =
       cast<VPBasicBlock>(Plan.getVectorLoopRegion()->getSingleSuccessor());
   // No edge from the middle block to the unique exit block has been inserted
@@ -8702,6 +8858,17 @@ static SetVector<VPIRInstruction *> collectUsersInExitBlock(
          any_of(IncomingValue->users(), [&Inductions](User *U) {
            auto *P = dyn_cast<PHINode>(U);
            return P && Inductions.contains(P);
+         })))
+      continue;
+    // Exit values for CSAs are computed and updated outside of VPlan and
+    // independent of induction recipes.
+    // TODO: Compute induction exit values in VPlan, use VPLiveOuts to update
+    // live-outs.
+    if (isa<VPCSADataUpdateRecipe>(V) &&
+        (isa<Instruction>(IncomingValue) &&
+         any_of(IncomingValue->users(), [&CSAs](User *U) {
+           auto *P = dyn_cast<PHINode>(U);
+           return P && CSAs.contains(P);
          })))
       continue;
     ExitUsersToFix.insert(ExitIRI);
@@ -8917,6 +9084,10 @@ LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(VFRange &Range) {
   bool HasNUW = Style == TailFoldingStyle::None;
   addCanonicalIVRecipes(*Plan, Legal->getWidestInductionType(), HasNUW, DL);
 
+  addCSAPreprocessRecipes(Legal->getCSAs(), OrigLoop, Plan->getPreheader(),
+                          Plan->getVectorLoopRegion()->getEntryBasicBlock(), DL,
+                          Range, *Plan);
+
   VPRecipeBuilder RecipeBuilder(*Plan, OrigLoop, TLI, Legal, CM, PSE, Builder);
 
   // ---------------------------------------------------------------------------
@@ -9035,6 +9206,11 @@ LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(VFRange &Range) {
     VPBB = cast<VPBasicBlock>(VPBB->getSingleSuccessor());
   }
 
+  VPBasicBlock *MiddleVPBB =
+      cast<VPBasicBlock>(Plan->getVectorLoopRegion()->getSingleSuccessor());
+  addCSAPostprocessRecipes(RecipeBuilder, Legal->getCSAs(), MiddleVPBB, DL,
+                           Range, *Plan);
+
   // After here, VPBB should not be used.
   VPBB = nullptr;
 
@@ -9044,8 +9220,9 @@ LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(VFRange &Range) {
          "VPBasicBlock");
   RecipeBuilder.fixHeaderPhis();
 
-  SetVector<VPIRInstruction *> ExitUsersToFix = collectUsersInExitBlock(
-      OrigLoop, RecipeBuilder, *Plan, Legal->getInductionVars());
+  SetVector<VPIRInstruction *> ExitUsersToFix =
+      collectUsersInExitBlock(OrigLoop, RecipeBuilder, *Plan,
+                              Legal->getInductionVars(), Legal->getCSAs());
   addLiveOutsForFirstOrderRecurrences(*Plan, ExitUsersToFix);
   addUsersInExitBlock(*Plan, ExitUsersToFix);
 
@@ -10107,6 +10284,7 @@ bool LoopVectorizePass::processLoop(Loop *L) {
         auto ExpandedSCEVs = LVP.executePlan(EPI.MainLoopVF, EPI.MainLoopUF,
                                              *BestMainPlan, MainILV, DT, true);
         ++LoopsVectorized;
+        CSAsVectorized += LVL.getCSAs().size();
 
         // Second pass vectorizes the epilogue and adjusts the control flow
         // edges from the first pass.
@@ -10202,6 +10380,7 @@ bool LoopVectorizePass::processLoop(Loop *L) {
                                PSI, Checks);
         LVP.executePlan(VF.Width, IC, BestPlan, LB, DT, false);
         ++LoopsVectorized;
+        CSAsVectorized += LVL.getCSAs().size();
 
         // Add metadata to disable runtime unrolling a scalar loop when there
         // are no runtime checks about strides and memory. A scalar loop that is

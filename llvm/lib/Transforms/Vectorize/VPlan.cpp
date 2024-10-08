@@ -861,6 +861,9 @@ VPlan::~VPlan() {
     delete VPV;
   if (BackedgeTakenCount)
     delete BackedgeTakenCount;
+
+  for (std::pair<PHINode *, VPCSAState *> &S : CSAStates)
+    delete S.second;
 }
 
 VPIRBasicBlock *VPIRBasicBlock::fromBasicBlock(BasicBlock *IRBB) {
@@ -1071,7 +1074,7 @@ void VPlan::execute(VPTransformState *State) {
   VPBasicBlock *Header = getVectorLoopRegion()->getEntryBasicBlock();
   for (VPRecipeBase &R : Header->phis()) {
     // Skip phi-like recipes that generate their backedege values themselves.
-    if (isa<VPWidenPHIRecipe>(&R))
+    if (R.isPhiThatGeneratesBackedge())
       continue;
 
     if (isa<VPWidenPointerInductionRecipe>(&R) ||

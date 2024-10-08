@@ -231,6 +231,53 @@ public:
   }
 };
 
+class VPInstruction;
+class VPCSAHeaderPHIRecipe;
+class VPCSADataUpdateRecipe;
+class VPCSAExtractScalarRecipe;
+
+/// VPCSAState holds information required to vectorize a conditional scalar
+/// assignment.
+class VPCSAState {
+  VPValue *VPInitScalar = nullptr;
+  VPInstruction *VPInitData = nullptr;
+  VPInstruction *VPMaskPhi = nullptr;
+  VPInstruction *VPAnyActive = nullptr;
+  VPCSAHeaderPHIRecipe *VPPhiRecipe = nullptr;
+  VPCSADataUpdateRecipe *VPDataUpdate = nullptr;
+  VPCSAExtractScalarRecipe *VPExtractScalar = nullptr;
+
+public:
+  VPCSAState(VPValue *VPInitScalar, VPInstruction *InitData,
+             VPInstruction *MaskPhi)
+      : VPInitScalar(VPInitScalar), VPInitData(InitData), VPMaskPhi(MaskPhi) {}
+
+  VPCSAState(VPValue *VPInitScalar) : VPInitScalar(VPInitScalar) {}
+
+  VPValue *getVPInitScalar() const { return VPInitScalar; }
+
+  VPInstruction *getVPInitData() const { return VPInitData; }
+
+  VPInstruction *getVPMaskPhi() const { return VPMaskPhi; }
+
+  void setVPAnyActive(VPInstruction *AnyActive) { VPAnyActive = AnyActive; }
+  VPInstruction *getVPAnyActive() { return VPAnyActive; }
+
+  VPCSAHeaderPHIRecipe *getPhiRecipe() const { return VPPhiRecipe; }
+
+  void setPhiRecipe(VPCSAHeaderPHIRecipe *R) { VPPhiRecipe = R; }
+
+  VPCSADataUpdateRecipe *getDataUpdate() const { return VPDataUpdate; }
+  void setDataUpdate(VPCSADataUpdateRecipe *R) { VPDataUpdate = R; }
+
+  void setExtractScalarRecipe(VPCSAExtractScalarRecipe *R) {
+    VPExtractScalar = R;
+  }
+  VPCSAExtractScalarRecipe *getExtractScalarRecipe() const {
+    return VPExtractScalar;
+  }
+};
+
 /// VPTransformState holds information passed down when "executing" a VPlan,
 /// needed for generating the output IR.
 struct VPTransformState {
@@ -807,8 +854,27 @@ public:
   bool mayHaveSideEffects() const;
 
   /// Returns true for PHI-like recipes.
-  bool isPhi() const {
+  virtual bool isPhi() const {
+    assert(getVPDefID() != VPInstructionSC &&
+           "VPInstructions implement this function themselves");
     return getVPDefID() >= VPFirstPHISC && getVPDefID() <= VPLastPHISC;
+  }
+
+  /// Returns true for PHI-like recipes that exists in vector loop header basic
+  /// block
+  virtual bool isHeaderPhi() const {
+    assert(getVPDefID() != VPInstructionSC &&
+           "VPInstructions implement this function themselves");
+    return (getVPDefID() >= VPFirstHeaderPHISC &&
+            getVPDefID() <= VPLastHeaderPHISC) ||
+           getVPDefID() == VPWidenPHISC;
+  }
+
+  /// Returns true for PHI-like recipes that generate their own backedge
+  virtual bool isPhiThatGeneratesBackedge() const {
+    assert(getVPDefID() != VPInstructionSC &&
+           "VPInstructions implement this function themselves");
+    return getVPDefID() == VPWidenPHISC || getVPDefID() == VPCSAHeaderPHISC;
   }
 
   /// Returns true if the recipe may read from memory.
@@ -899,6 +965,9 @@ public:
     case VPRecipeBase::VPWidenPointerInductionSC:
     case VPRecipeBase::VPReductionPHISC:
     case VPRecipeBase::VPScalarCastSC:
+    case VPRecipeBase::VPCSAHeaderPHISC:
+    case VPRecipeBase::VPCSADataUpdateSC:
+    case VPRecipeBase::VPCSAExtractScalarSC:
       return true;
     case VPRecipeBase::VPBranchOnMaskSC:
     case VPRecipeBase::VPInterleaveSC:
@@ -1244,6 +1313,14 @@ public:
     // operand). Only generates scalar values (either for the first lane only or
     // for all lanes, depending on its uses).
     PtrAdd,
+    CSAInitMask,
+    CSAInitData,
+    CSAMaskPhi,
+    CSAMaskSel,
+    CSAVLPhi,
+    CSAVLSel,
+    CSAAnyActive,
+    CSAAnyActiveEVL,
   };
 
 private:
@@ -1384,6 +1461,16 @@ public:
   /// Returns true if this VPInstruction's operands are single scalars and the
   /// result is also a single scalar.
   bool isSingleScalar() const;
+
+  /// Returns true for PHI-like recipes.
+  bool isPhi() const override;
+
+  /// Returns true for PHI-like recipes that exists in vector loop header basic
+  /// block
+  bool isHeaderPhi() const override;
+
+  /// Returns true for PHI-like recipes that generate their own backedge
+  bool isPhiThatGeneratesBackedge() const override;
 };
 
 /// A recipe to wrap on original IR instruction not to be modified during
@@ -2587,6 +2674,119 @@ public:
   }
 };
 
+class VPCSAHeaderPHIRecipe final : public VPHeaderPHIRecipe {
+public:
+  VPCSAHeaderPHIRecipe(PHINode *Phi, VPValue *VPInitData)
+      : VPHeaderPHIRecipe(VPDef::VPCSAHeaderPHISC, Phi, VPInitData) {}
+
+  ~VPCSAHeaderPHIRecipe() override = default;
+
+  VPCSAHeaderPHIRecipe *clone() override {
+    return new VPCSAHeaderPHIRecipe(cast<PHINode>(getUnderlyingInstr()),
+                                    getOperand(0));
+  }
+
+  void execute(VPTransformState &State) override;
+
+  InstructionCost computeCost(ElementCount VF,
+                              VPCostContext &Ctx) const override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  VP_CLASSOF_IMPL(VPDef::VPCSAHeaderPHISC)
+
+  static inline bool classof(const VPHeaderPHIRecipe *R) {
+    return R->getVPDefID() == VPDef::VPCSAHeaderPHISC;
+  }
+
+  VPValue *getVPInitData() { return getOperand(0); }
+  VPValue *getVPNewData() { return getOperand(1); }
+};
+
+class VPCSADataUpdateRecipe final : public VPSingleDefRecipe {
+public:
+  VPCSADataUpdateRecipe(SelectInst *SI, ArrayRef<VPValue *> Operands)
+      : VPSingleDefRecipe(VPDef::VPCSADataUpdateSC, Operands, SI) {}
+
+  ~VPCSADataUpdateRecipe() override = default;
+
+  VPCSADataUpdateRecipe *clone() override {
+    SmallVector<VPValue *> Ops(operands());
+    return new VPCSADataUpdateRecipe(cast<SelectInst>(getUnderlyingInstr()),
+                                     Ops);
+  }
+
+  void execute(VPTransformState &State) override;
+
+  InstructionCost computeCost(ElementCount VF,
+                              VPCostContext &Ctx) const override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  VP_CLASSOF_IMPL(VPDef::VPCSADataUpdateSC)
+
+  VPValue *getVPDataPhi() const { return getOperand(0); }
+
+  // The condition from the original select statement
+  VPValue *getVPCond() const { return getOperand(1); }
+
+  // The true value from the original select statement
+  VPValue *getVPTrue() const { return getOperand(2); }
+
+  // The false value from the original select statement
+  VPValue *getVPFalse() const { return getOperand(3); }
+
+  // We combine the setters so we can be sure NewMask is before AnyActive
+  // in the operands list, so the getters can be sure which operand numbers
+  // to get.
+  void setVPNewMaskAndVPAnyActive(VPValue *NewMask, VPValue *AnyActive) {
+    addOperand(NewMask);
+    addOperand(AnyActive);
+  }
+
+  VPValue *getVPNewMask() const { return getOperand(4); }
+
+  VPValue *getVPAnyActive() const { return getOperand(5); }
+};
+
+class VPCSAExtractScalarRecipe final : public VPSingleDefRecipe {
+public:
+  VPCSAExtractScalarRecipe(ArrayRef<VPValue *> Operands)
+      : VPSingleDefRecipe(VPDef::VPCSAExtractScalarSC, Operands) {}
+
+  ~VPCSAExtractScalarRecipe() override = default;
+
+  VPCSAExtractScalarRecipe *clone() override {
+    SmallVector<VPValue *> Ops(operands());
+    return new VPCSAExtractScalarRecipe(Ops);
+  }
+
+  void execute(VPTransformState &State) override;
+
+  InstructionCost computeCost(ElementCount VF,
+                              VPCostContext &Ctx) const override;
+
+#if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+  /// Print the recipe.
+  void print(raw_ostream &O, const Twine &Indent,
+             VPSlotTracker &SlotTracker) const override;
+#endif
+
+  VPValue *getVPInitScalar() const { return getOperand(0); }
+  VPValue *getVPMaskSel() const { return getOperand(1); }
+  VPValue *getVPDataSel() const { return getOperand(2); }
+  VPValue *getVPCSAVLSel() const { return getOperand(3); }
+  bool usesEVL() const { return getNumOperands() == 4; }
+};
+
 /// VPPredInstPHIRecipe is a recipe for generating the phi nodes needed when
 /// control converges back from a Branch-on-Mask. The phi nodes are needed in
 /// order to merge values that are set under such a branch and feed their uses.
@@ -3507,6 +3707,8 @@ class VPlan {
   /// live-outs are fixed via VPLiveOut::fixPhi.
   MapVector<PHINode *, VPLiveOut *> LiveOuts;
 
+  MapVector<PHINode *, VPCSAState *> CSAStates;
+
   /// Mapping from SCEVs to the VPValues representing their expansions.
   /// NOTE: This mapping is temporary and will be removed once all users have
   /// been modeled in VPlan directly.
@@ -3550,6 +3752,12 @@ public:
                                      PredicatedScalarEvolution &PSE,
                                      bool RequiresScalarEpilogueCheck,
                                      bool TailFolded, Loop *TheLoop);
+
+  void addCSAState(PHINode *Phi, VPCSAState *S) { CSAStates.insert({Phi, S}); }
+
+  MapVector<PHINode *, VPCSAState *> const &getCSAStates() const {
+    return CSAStates;
+  }
 
   /// Prepare the plan for execution, setting up the required live-in values.
   void prepareToExecute(Value *TripCount, Value *VectorTripCount,

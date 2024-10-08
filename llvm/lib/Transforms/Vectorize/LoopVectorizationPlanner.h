@@ -174,8 +174,8 @@ public:
         new VPInstruction(Opcode, Operands, WrapFlags, DL, Name));
   }
 
-  VPValue *createNot(VPValue *Operand, DebugLoc DL = {},
-                     const Twine &Name = "") {
+  VPInstruction *createNot(VPValue *Operand, DebugLoc DL = {},
+                           const Twine &Name = "") {
     return createInstruction(VPInstruction::Not, {Operand}, DL, Name);
   }
 
@@ -229,6 +229,49 @@ public:
                                 const Twine &Name = "") {
     return tryInsertInstruction(new VPInstruction(
         Ptr, Offset, VPRecipeWithIRFlags::GEPFlagsTy(true), DL, Name));
+  }
+
+  VPInstruction *createCSAInitMask(DebugLoc DL, const Twine &Name) {
+    return createInstruction(VPInstruction::CSAInitMask, {}, DL, Name);
+  }
+
+  VPInstruction *createCSAInitData(VPValue *InitScalar, DebugLoc DL,
+                                   const Twine &Name) {
+    return createInstruction(VPInstruction::CSAInitData, {InitScalar}, DL,
+                             Name);
+  }
+
+  VPInstruction *createCSAMaskPhi(VPValue *InitMask, DebugLoc DL,
+                                  const Twine &Name) {
+    return createInstruction(VPInstruction::CSAMaskPhi, {InitMask}, DL, Name);
+  }
+
+  VPInstruction *createCSAAnyActive(VPValue *Cond, DebugLoc DL,
+                                    const Twine &Name) {
+    return createInstruction(VPInstruction::CSAAnyActive, {Cond}, DL, Name);
+  }
+
+  VPInstruction *createCSAMaskSel(VPValue *Cond, VPValue *MaskPhi,
+                                  VPValue *AnyActive, DebugLoc DL,
+                                  const Twine &Name) {
+    return createInstruction(VPInstruction::CSAMaskSel,
+                             {Cond, MaskPhi, AnyActive}, DL, Name);
+  }
+
+  VPInstruction *createCSAAnyActiveEVL(VPValue *Cond, VPValue *EVL, DebugLoc DL,
+                                       const Twine &Name) {
+    return createInstruction(VPInstruction::CSAAnyActiveEVL, {Cond, EVL}, DL,
+                             Name);
+  }
+
+  VPInstruction *createCSAVLPhi(DebugLoc DL, const Twine &Name) {
+    return createInstruction(VPInstruction::CSAVLPhi, {}, DL, Name);
+  }
+
+  VPInstruction *createCSAVLSel(VPValue *AnyActiveEVL, VPValue *VLPhi,
+                                VPValue *EVL, DebugLoc DL, const Twine &Name) {
+    return createInstruction(VPInstruction::CSAVLSel,
+                             {AnyActiveEVL, VLPhi, EVL}, DL, Name);
   }
 
   VPDerivedIVRecipe *createDerivedIV(InductionDescriptor::InductionKind Kind,
