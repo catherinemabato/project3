@@ -29,8 +29,8 @@ define float @fmul_select_f32_test1(float %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f32_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, float 2.000000e+00, float 1.000000e+00
-  %ldexp = fmul float %x, %1
+  %y = select i1 %bool, float 2.000000e+00, float 1.000000e+00
+  %ldexp = fmul float %x, %y
   ret float %ldexp
 }
 
@@ -60,8 +60,8 @@ define float @fmul_select_f32_test2(float %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f32_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, float 0.500000e+00, float 1.000000e+00
-  %ldexp = fmul float %x, %1
+  %y = select i1 %bool, float 5.000000e-01, float 1.000000e+00
+  %ldexp = fmul float %x, %y
   ret float %ldexp
 }
 
@@ -99,8 +99,8 @@ define <2 x float> @fmul_select_f32_test3(<2 x float> %x, <2 x i32> %bool.arg1, 
 ; GFX1100-NEXT:    v_dual_mul_f32 v0, v0, v2 :: v_dual_mul_f32 v1, v1, v3
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x float> <float 2.000000e+00, float 2.000000e+00>, <2 x float> <float 1.000000e+00, float 1.000000e+00>
-  %ldexp = fmul <2 x float> %x, %1
+  %y = select <2 x i1> %bool, <2 x float> <float 2.000000e+00, float 2.000000e+00>, <2 x float> <float 1.000000e+00, float 1.000000e+00>
+  %ldexp = fmul <2 x float> %x, %y
   ret <2 x float> %ldexp
 }
 
@@ -138,8 +138,8 @@ define <2 x float> @fmul_select_f32_test4(<2 x float> %x, <2 x i32> %bool.arg1, 
 ; GFX1100-NEXT:    v_dual_mul_f32 v0, v0, v2 :: v_dual_mul_f32 v1, v1, v3
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x float> <float 0.500000e+00, float 0.500000e+00>, <2 x float> <float 1.000000e+00, float 1.000000e+00>
-  %ldexp = fmul <2 x float> %x, %1
+  %y = select <2 x i1> %bool, <2 x float> <float 5.000000e-01, float 5.000000e-01>, <2 x float> <float 1.000000e+00, float 1.000000e+00>
+  %ldexp = fmul <2 x float> %x, %y
   ret <2 x float> %ldexp
 }
 
@@ -169,8 +169,8 @@ define float @fmul_select_f32_test5(float %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f32_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, float -2.000000e+00, float -1.000000e+00
-  %ldexp = fmul float %x, %1
+  %y = select i1 %bool, float -2.000000e+00, float -1.000000e+00
+  %ldexp = fmul float %x, %y
   ret float %ldexp
 }
 
@@ -204,8 +204,8 @@ define float @fmul_select_f32_test6(float %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f32_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, float 3.000000e+00, float 8.000000e+00
-  %ldexp = fmul float %x, %1
+  %y = select i1 %bool, float 3.000000e+00, float 8.000000e+00
+  %ldexp = fmul float %x, %y
   ret float %ldexp
 }
 
@@ -239,8 +239,8 @@ define double @fmul_select_f64_test1(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double 2.000000e+00, double 1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double 2.000000e+00, double 1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -276,8 +276,8 @@ define double @fmul_select_f64_test2(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double 0.500000e+00, double 1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double 5.000000e-01, double 1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -324,8 +324,8 @@ define <2 x double> @fmul_select_f64_test3(<2 x double> %x, <2 x i32> %bool.arg1
 ; GFX1100-NEXT:    v_mul_f64 v[2:3], v[2:3], v[8:9]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x double> <double 2.000000e+00, double 2.000000e+00>, <2 x double> <double 1.000000e+00, double 1.000000e+00>
-  %ldexp = fmul <2 x double> %x, %1
+  %y = select <2 x i1> %bool, <2 x double> <double 2.000000e+00, double 2.000000e+00>, <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  %ldexp = fmul <2 x double> %x, %y
   ret <2 x double> %ldexp
 }
 
@@ -373,8 +373,8 @@ define <2 x double> @fmul_select_f64_test4(<2 x double> %x, <2 x i32> %bool.arg1
 ; GFX1100-NEXT:    v_mul_f64 v[2:3], v[2:3], v[8:9]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x double> <double 0.500000e+00, double 0.500000e+00>, <2 x double> <double 1.000000e+00, double 1.000000e+00>
-  %ldexp = fmul <2 x double> %x, %1
+  %y = select <2 x i1> %bool, <2 x double> <double 5.000000e-01, double 5.000000e-01>, <2 x double> <double 1.000000e+00, double 1.000000e+00>
+  %ldexp = fmul <2 x double> %x, %y
   ret <2 x double> %ldexp
 }
 
@@ -410,8 +410,8 @@ define double @fmul_select_f64_test5(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double -0.500000e+00, double -1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double -5.000000e-01, double -1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -445,8 +445,8 @@ define double @fmul_select_f64_test6(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double -2.000000e+00, double -1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double -2.000000e+00, double -1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -480,8 +480,8 @@ define double @fmul_select_f64_test7(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double 2.000000e+00, double -1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double 2.000000e+00, double -1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -517,8 +517,8 @@ define double @fmul_select_f64_test8(double %x, i32 %bool.arg1, i32 %bool.arg2) 
 ; GFX1100-NEXT:    v_mul_f64 v[0:1], v[0:1], v[4:5]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, double 4.000000e+00, double -1.000000e+00
-  %ldexp = fmul double %x, %1
+  %y = select i1 %bool, double 4.000000e+00, double -1.000000e+00
+  %ldexp = fmul double %x, %y
   ret double %ldexp
 }
 
@@ -565,8 +565,8 @@ define <2 x double> @fmul_select_f64_test9(<2 x double> %x, <2 x i32> %bool.arg1
 ; GFX1100-NEXT:    v_mul_f64 v[2:3], v[2:3], v[8:9]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x double> <double -2.000000e+00, double -2.000000e+00>, <2 x double> <double -1.000000e+00, double -1.000000e+00>
-  %ldexp = fmul <2 x double> %x, %1
+  %y = select <2 x i1> %bool, <2 x double> <double -2.000000e+00, double -2.000000e+00>, <2 x double> <double -1.000000e+00, double -1.000000e+00>
+  %ldexp = fmul <2 x double> %x, %y
   ret <2 x double> %ldexp
 }
 
@@ -615,8 +615,8 @@ define <2 x double> @fmul_select_f64_test10(<2 x double> %x, <2 x i32> %bool.arg
 ; GFX1100-NEXT:    v_mul_f64 v[2:3], v[2:3], v[8:9]
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x double> <double 0.500000e+00, double 2.000000e+00>, <2 x double> <double -1.000000e+00, double 1.000000e+00>
-  %ldexp = fmul <2 x double> %x, %1
+  %y = select <2 x i1> %bool, <2 x double> <double 5.000000e-01, double 2.000000e+00>, <2 x double> <double -1.000000e+00, double 1.000000e+00>
+  %ldexp = fmul <2 x double> %x, %y
   ret <2 x double> %ldexp
 }
 
@@ -650,8 +650,8 @@ define half @fmul_select_f16_test1(half %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f16_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, half 2.000000e+00, half 1.000000e+00
-  %ldexp = fmul half %x, %1
+  %y = select i1 %bool, half 2.000000e+00, half 1.000000e+00
+  %ldexp = fmul half %x, %y
   ret half %ldexp
 }
 
@@ -685,8 +685,8 @@ define half @fmul_select_f16_test2(half %x, i32 %bool.arg1, i32 %bool.arg2) {
 ; GFX1100-NEXT:    v_mul_f16_e32 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq i32 %bool.arg1, %bool.arg2
-  %1 = select i1 %bool, half 0.500000e+00, half 1.000000e+00
-  %ldexp = fmul half %x, %1
+  %y = select i1 %bool, half 5.000000e-01, half 1.000000e+00
+  %ldexp = fmul half %x, %y
   ret half %ldexp
 }
 
@@ -730,8 +730,8 @@ define <2 x half> @fmul_select_f16_test3(<2 x half> %x, <2 x i32> %bool.arg1, <2
 ; GFX1100-NEXT:    v_pk_mul_f16 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x half> <half 2.000000e+00, half 2.000000e+00>, <2 x half> <half 1.000000e+00, half 1.000000e+00>
-  %ldexp = fmul <2 x half> %x, %1
+  %y = select <2 x i1> %bool, <2 x half> <half 2.000000e+00, half 2.000000e+00>, <2 x half> <half 1.000000e+00, half 1.000000e+00>
+  %ldexp = fmul <2 x half> %x, %y
   ret <2 x half> %ldexp
 }
 
@@ -775,7 +775,7 @@ define <2 x half> @fmul_select_f16_test4(<2 x half> %x, <2 x i32> %bool.arg1, <2
 ; GFX1100-NEXT:    v_pk_mul_f16 v0, v0, v1
 ; GFX1100-NEXT:    s_setpc_b64 s[30:31]
   %bool = icmp eq <2 x i32> %bool.arg1, %bool.arg2
-  %1 = select <2 x i1> %bool, <2 x half> <half 0.500000e+00, half 0.500000e+00>, <2 x half> <half 1.000000e+00, half 1.000000e+00>
-  %ldexp = fmul <2 x half> %x, %1
+  %y = select <2 x i1> %bool, <2 x half> <half 5.000000e-01, half 5.000000e-01>, <2 x half> <half 1.000000e+00, half 1.000000e+00>
+  %ldexp = fmul <2 x half> %x, %y
   ret <2 x half> %ldexp
 }
