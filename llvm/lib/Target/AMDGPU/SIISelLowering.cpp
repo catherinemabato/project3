@@ -14481,6 +14481,7 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
   EVT VT = N->getValueType(0);
+  EVT i32VT = VT.changeElementType(MVT::i32);
 
   SDLoc SL(N);
   SDValue LHS = N->getOperand(0);
@@ -14492,12 +14493,7 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
   // The above mentioned ldexp folding works fine for
   // f16/f32, but as for f64 it creates f64 select which
   // is costly to materealize as compared to f64 ldexp
-  // so here we undo the transform for f64 as follows :
-  //
-  // fmul x, (select y, 2.0, 1.0)   -> ldexp(  x, zext(i1 y) )
-  // fmul x, (select y, -2.0, -1.0) -> ldexp( (fneg x), zext(i1 y) )
-  // fmul x, (select y, 0.5, 1.0)   -> ldexp(  x, sext(i1 y) )
-  // fmul x, (select y, -0.5, -1.0) -> ldexp( (fneg x), sext(i1 y) )
+  // so here we undo the transform for f64 datatype.
   if (VT.getScalarType() == MVT::f64) {
     if (RHS.hasOneUse() && RHS.getOpcode() == ISD::SELECT) {
       const ConstantFPSDNode *TrueNode =
@@ -14510,25 +14506,36 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
 
       if (TrueNode->isNegative() != FalseNode->isNegative())
         return SDValue();
-      bool isNeg = TrueNode->isNegative();
+      LHS = TrueNode->isNegative() ? DAG.getNode(ISD::FNEG, SL, VT, LHS) : LHS;
 
-      unsigned ExtOp;
+      // fmul x, (select y, 2.0, 1.0)   -> ldexp(  x, zext(i1 y) )
+      // fmul x, (select y, -2.0, -1.0) -> ldexp( (fneg x), zext(i1 y) )
+      // fmul x, (select y, 0.5, 1.0)   -> ldexp(  x, sext(i1 y) )
+      // fmul x, (select y, -0.5, -1.0) -> ldexp( (fneg x), sext(i1 y) )
       if (FalseNode->isExactlyValue(1.0) || FalseNode->isExactlyValue(-1.0)) {
-        if (TrueNode->isExactlyValue(2.0) || TrueNode->isExactlyValue(-2.0))
-          ExtOp = ISD::ZERO_EXTEND;
-        else if (TrueNode->isExactlyValue(0.5) ||
-                 TrueNode->isExactlyValue(-0.5))
-          ExtOp = ISD::SIGN_EXTEND;
-        else
-          return SDValue();
+        if (TrueNode->isExactlyValue(2.0) || TrueNode->isExactlyValue(-2.0)) {
+          SDValue ZExtNode =
+              DAG.getNode(ISD::ZERO_EXTEND, SL, i32VT, RHS.getOperand(0));
+          return DAG.getNode(ISD::FLDEXP, SL, VT, LHS, ZExtNode);
+        } else if (TrueNode->isExactlyValue(0.5) ||
+                   TrueNode->isExactlyValue(-0.5)) {
+          SDValue SExtNode =
+              DAG.getNode(ISD::SIGN_EXTEND, SL, i32VT, RHS.getOperand(0));
+          return DAG.getNode(ISD::FLDEXP, SL, VT, LHS, SExtNode);
+        }
+      }
 
-        EVT ExtVT = VT.isVector()
-                        ? EVT::getVectorVT(*DAG.getContext(), MVT::i32,
-                                           VT.getVectorNumElements())
-                        : MVT::i32;
-        SDValue ExtNode = DAG.getNode(ExtOp, SL, ExtVT, RHS.getOperand(0));
-        LHS = isNeg ? DAG.getNode(ISD::FNEG, SL, VT, LHS) : LHS;
-        return DAG.getNode(ISD::FLDEXP, SL, VT, LHS, ExtNode);
+      // Given : A = 2^a  &  B = 2^b ; where a and b are integers.
+      // fmul x, (select y, A, B)     -> ldexp( x, (select i32 y, a, b) )
+      // fmul x, (select y, -A, -B)   -> ldexp( (fneg x), (select i32 y, a, b) )
+      int TrueNodeExpVal = TrueNode->getValueAPF().getExactLog2Abs();
+      int FalseNodeExpVal = FalseNode->getValueAPF().getExactLog2Abs();
+      if (TrueNodeExpVal != INT_MIN && FalseNodeExpVal != INT_MIN) {
+        SDValue SelectNode =
+            DAG.getNode(ISD::SELECT, SL, i32VT, RHS.getOperand(0),
+                        DAG.getConstant(TrueNodeExpVal, SL, i32VT),
+                        DAG.getConstant(FalseNodeExpVal, SL, i32VT));
+        return DAG.getNode(ISD::FLDEXP, SL, VT, LHS, SelectNode);
       }
     }
   }
