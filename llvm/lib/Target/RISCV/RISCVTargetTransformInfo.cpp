@@ -351,14 +351,14 @@ RISCVTTIImpl::isMultipleInsertSubvector(VectorType *Tp, ArrayRef<int> Mask,
   std::pair<InstructionCost, MVT> LT = getTypeLegalizationCost(Tp);
   if (LT.second.getScalarSizeInBits() == 1)
     return InstructionCost::getInvalid();
+  unsigned Size = Mask.size();
+  if (!isPowerOf2_32(Size))
+    return InstructionCost::getInvalid();
   // Try to guess SubTp.
-  for (unsigned SubVecSize = 1, E = Mask.size(); SubVecSize < E;
-       SubVecSize <<= 1) {
-    if (E % SubVecSize != 0)
-      continue;
+  for (unsigned SubVecSize = 1; SubVecSize < Size; SubVecSize <<= 1) {
     SmallVector<int> RepeatedPattern(createSequentialMask(0, SubVecSize, 0));
     bool Skip = false;
-    for (unsigned I = 0; I != E; I += SubVecSize)
+    for (unsigned I = 0; I != Size; I += SubVecSize)
       if (!Mask.slice(I, SubVecSize).equals(RepeatedPattern)) {
         Skip = true;
         break;
@@ -366,12 +366,12 @@ RISCVTTIImpl::isMultipleInsertSubvector(VectorType *Tp, ArrayRef<int> Mask,
     if (Skip)
       continue;
     InstructionCost Cost = 0;
-    unsigned NumSlides = Log2_32(E / SubVecSize);
+    unsigned NumSlides = Log2_32(Size / SubVecSize);
     // The cost of extraction from a subvector is 0 if the index is 0.
     for (unsigned I = 0; I != NumSlides; ++I) {
       unsigned InsertIndex = SubVecSize * (1 << I);
-      FixedVectorType *SubTp = FixedVectorType::get(
-          cast<FixedVectorType>(Tp)->getElementType(), InsertIndex);
+      FixedVectorType *SubTp =
+          FixedVectorType::get(Tp->getElementType(), InsertIndex);
       FixedVectorType *DesTp =
           FixedVectorType::getDoubleElementsVectorType(SubTp);
       std::pair<InstructionCost, MVT> DesLT = getTypeLegalizationCost(DesTp);
