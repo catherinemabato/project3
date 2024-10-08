@@ -3246,6 +3246,25 @@ void Sema::checkLifetimeCaptureBy(FunctionDecl *FD, bool IsMemberFunction,
       checkCaptureLifetime(*this, CE, Captured);
     }
   }
+  if (IsMemberFunction) {
+    TypeSourceInfo *TSI = FD->getTypeSourceInfo();
+    if (!TSI)
+      return;
+    AttributedTypeLoc ATL;
+    for (TypeLoc TL = TSI->getTypeLoc();
+         (ATL = TL.getAsAdjusted<AttributedTypeLoc>());
+         TL = ATL.getModifiedLoc()) {
+      auto *CapturedByAttr = ATL.getAttrAs<LifetimeCaptureByAttr>();
+      if (!CapturedByAttr)
+        continue;
+      Expr *Captured = GetArgAt(0);
+      for (int CapturingParamIdx : CapturedByAttr->params()) {
+        Expr *Capturing = GetArgAt(CapturingParamIdx);
+        CapturingEntity CE{Capturing};
+        checkCaptureLifetime(*this, CE, Captured);
+      }
+    }
+  }
 }
 
 void Sema::checkCall(NamedDecl *FDecl, const FunctionProtoType *Proto,

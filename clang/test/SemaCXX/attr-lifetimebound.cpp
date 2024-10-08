@@ -351,7 +351,7 @@ struct T {
 };
 
 struct ThisIsCaptured {
-  void foo(S& s) [[clang::lifetime_capture_by(s)]];
+  void capture(S& s) [[clang::lifetime_capture_by(s)]];
   void bar(S& s) [[clang::lifetime_capture_by(abcd)]]; // expected-error {{'lifetime_capture_by' attribute argument 'abcd' is not a known function parameter}}
   void baz(S& s) [[clang::lifetime_capture_by(this)]]; // expected-error {{'lifetime_capture_by' argument references itself}}
 };
@@ -366,9 +366,12 @@ std::string_view substr(const std::string& s [[clang::lifetimebound]]);
 std::string_view strcopy(const std::string& s);
 
 void captureSV(std::string_view x [[clang::lifetime_capture_by(s)]], S&s);
+void captureS(const std::string& x [[clang::lifetime_capture_by(s)]], S&s);
 void noCaptureSV(std::string_view x, S&s);
 
 void use() {
+  std::string_view local_sv;
+  std::string local_s;
   S s;
   int local;
   captureInt(1, // expected-warning {{object captured by the 's' will be destroyed at the end of the full-expression}}
@@ -378,23 +381,34 @@ void use() {
   noCaptureInt(1, s);
   noCaptureInt(local, s);
 
-  std::string_view local_sv;
+  // Capture using std::string_view.
   captureSV(local_sv, s);
   captureSV(std::string(), // expected-warning {{object captured by the 's'}}
             s);
   captureSV(substr(
       std::string() // expected-warning {{object captured by the 's'}}
       ), s);
+  captureSV(substr(local_s), s);
   captureSV(strcopy(std::string()), s);
-  
+
   noCaptureSV(local_sv, s);
   noCaptureSV(std::string(), s);
   noCaptureSV(substr(std::string()), s);
 
+  // Capture using std::string.
+  captureS(std::string(), s); // expected-warning {{object captured by the 's'}}
+  captureS(local_s, s);
+
+  // Member functions.  
   s.captureInt(1); // expected-warning {{object captured by the 's' will be destroyed at the end of the full-expression}}
   s.captureSV(std::string()); // expected-warning {{object captured by the 's'}}
   s.captureSV(substr(std::string())); // expected-warning {{object captured by the 's'}}
   s.captureSV(strcopy(std::string()));
+
+  // This is captured.
+  ThisIsCaptured{}.capture(s); //expected-warning {{object captured by the 's'}}
+  ThisIsCaptured TIS;
+  TIS.capture(s);
 }
 } // namespace lifetime_capture_by_usage
 

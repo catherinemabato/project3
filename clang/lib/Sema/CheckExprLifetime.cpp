@@ -1435,6 +1435,12 @@ void checkInitLifetime(Sema &SemaRef, const InitializedEntity &Entity,
                         /*AEntity*/ nullptr, Init);
 }
 
+void checkExprLifetimeMustTailArg(Sema &SemaRef,
+                                  const InitializedEntity &Entity, Expr *Init) {
+  checkExprLifetimeImpl(SemaRef, &Entity, nullptr, LK_MustTail,
+                        /*AEntity*/ nullptr, Init);
+}
+
 void checkAssignmentLifetime(Sema &SemaRef, const CapturingEntity &Entity,
                              Expr *RHS) {
   bool EnableDanglingPointerAssignment = !SemaRef.getDiagnostics().isIgnored(
