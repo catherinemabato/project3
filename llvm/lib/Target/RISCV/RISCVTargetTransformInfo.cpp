@@ -365,6 +365,8 @@ RISCVTTIImpl::isMultipleInsertSubvector(VectorType *Tp, ArrayRef<int> Mask,
     }
     return InstructionCost::getInvalid();
   }
+  if (Size % SubVecSize != 0)
+    return InstructionCost::getInvalid();
   for (unsigned I = 0; I != Size; ++I)
     if (static_cast<unsigned>(Mask[I]) != I % SubVecSize)
       return InstructionCost::getInvalid();
@@ -375,13 +377,13 @@ RISCVTTIImpl::isMultipleInsertSubvector(VectorType *Tp, ArrayRef<int> Mask,
     unsigned InsertIndex = SubVecSize * (1 << I);
     FixedVectorType *SubTp =
         FixedVectorType::get(Tp->getElementType(), InsertIndex);
-    FixedVectorType *DesTp =
+    FixedVectorType *DestTp =
         FixedVectorType::getDoubleElementsVectorType(SubTp);
-    std::pair<InstructionCost, MVT> DesLT = getTypeLegalizationCost(DesTp);
+    std::pair<InstructionCost, MVT> DestLT = getTypeLegalizationCost(DestTp);
     // Add the cost of whole vector register move because the destination vector
     // register group for vslideup cannot overlap the source.
-    Cost += DesLT.first * TLI->getLMULCost(DesLT.second);
-    Cost += getShuffleCost(TTI::SK_InsertSubvector, DesTp, {}, CostKind,
+    Cost += DestLT.first * TLI->getLMULCost(DestLT.second);
+    Cost += getShuffleCost(TTI::SK_InsertSubvector, DestTp, {}, CostKind,
                            InsertIndex, SubTp);
   }
   return Cost;
