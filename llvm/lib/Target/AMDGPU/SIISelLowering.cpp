@@ -14498,23 +14498,19 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
   // fmul x, (select y, -2.0, -1.0) -> ldexp( (fneg x), zext(i1 y) )
   // fmul x, (select y, 0.5, 1.0)   -> ldexp(  x, sext(i1 y) )
   // fmul x, (select y, -0.5, -1.0) -> ldexp( (fneg x), sext(i1 y) )
-  if (VT == MVT::f64) {
+  if (VT.getScalarType() == MVT::f64) {
     if (RHS.hasOneUse() && RHS.getOpcode() == ISD::SELECT) {
       const ConstantFPSDNode *TrueNode =
           isConstOrConstSplatFP(RHS.getOperand(1));
       const ConstantFPSDNode *FalseNode =
           isConstOrConstSplatFP(RHS.getOperand(2));
-      bool isNeg;
 
       if (!TrueNode || !FalseNode)
         return SDValue();
 
-      if (TrueNode->isNegative() && FalseNode->isNegative())
-        isNeg = true;
-      else if (!TrueNode->isNegative() && !FalseNode->isNegative())
-        isNeg = false;
-      else
+      if (TrueNode->isNegative() != FalseNode->isNegative())
         return SDValue();
+      bool isNeg = TrueNode->isNegative();
 
       unsigned ExtOp;
       if (FalseNode->isExactlyValue(1.0) || FalseNode->isExactlyValue(-1.0)) {
@@ -14526,9 +14522,13 @@ SDValue SITargetLowering::performFMulCombine(SDNode *N,
         else
           return SDValue();
 
-        SDValue ExtNode = DAG.getNode(ExtOp, SL, MVT::i32, RHS.getOperand(0));
+        EVT ExtVT = VT.isVector()
+                        ? EVT::getVectorVT(*DAG.getContext(), MVT::i32,
+                                           VT.getVectorNumElements())
+                        : MVT::i32;
+        SDValue ExtNode = DAG.getNode(ExtOp, SL, ExtVT, RHS.getOperand(0));
         LHS = isNeg ? DAG.getNode(ISD::FNEG, SL, VT, LHS) : LHS;
-        return DAG.getNode(ISD::FLDEXP, SL, MVT::f64, LHS, ExtNode);
+        return DAG.getNode(ISD::FLDEXP, SL, VT, LHS, ExtNode);
       }
     }
   }
