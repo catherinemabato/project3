@@ -354,36 +354,37 @@ RISCVTTIImpl::isMultipleInsertSubvector(VectorType *Tp, ArrayRef<int> Mask,
   unsigned Size = Mask.size();
   if (!isPowerOf2_32(Size))
     return InstructionCost::getInvalid();
-  // Try to guess SubTp.
-  for (unsigned SubVecSize = 1; SubVecSize < Size; SubVecSize <<= 1) {
-    SmallVector<int> RepeatedPattern(createSequentialMask(0, SubVecSize, 0));
-    bool Skip = false;
-    for (unsigned I = 0; I != Size; I += SubVecSize)
-      if (!Mask.slice(I, SubVecSize).equals(RepeatedPattern)) {
-        Skip = true;
-        break;
-      }
-    if (Skip)
+  // Try to guess subvector size.
+  unsigned SubVecSize;
+  for (unsigned I = 0; I != Size; ++I) {
+    if (static_cast<unsigned>(Mask[I]) == I)
       continue;
-    InstructionCost Cost = 0;
-    unsigned NumSlides = Log2_32(Size / SubVecSize);
-    // The cost of extraction from a subvector is 0 if the index is 0.
-    for (unsigned I = 0; I != NumSlides; ++I) {
-      unsigned InsertIndex = SubVecSize * (1 << I);
-      FixedVectorType *SubTp =
-          FixedVectorType::get(Tp->getElementType(), InsertIndex);
-      FixedVectorType *DesTp =
-          FixedVectorType::getDoubleElementsVectorType(SubTp);
-      std::pair<InstructionCost, MVT> DesLT = getTypeLegalizationCost(DesTp);
-      // Add the cost of whole vector register move because the destination
-      // vector register group for vslideup cannot overlap the source.
-      Cost += DesLT.first * TLI->getLMULCost(DesLT.second);
-      Cost += getShuffleCost(TTI::SK_InsertSubvector, DesTp, {}, CostKind,
-                             InsertIndex, SubTp);
+    if (Mask[I] == 0) {
+      SubVecSize = I;
+      break;
     }
-    return Cost;
+    return InstructionCost::getInvalid();
   }
-  return InstructionCost::getInvalid();
+  for (unsigned I = 0; I != Size; ++I)
+    if (static_cast<unsigned>(Mask[I]) != I % SubVecSize)
+      return InstructionCost::getInvalid();
+  InstructionCost Cost = 0;
+  unsigned NumSlides = Log2_32(Size / SubVecSize);
+  // The cost of extraction from a subvector is 0 if the index is 0.
+  for (unsigned I = 0; I != NumSlides; ++I) {
+    unsigned InsertIndex = SubVecSize * (1 << I);
+    FixedVectorType *SubTp =
+        FixedVectorType::get(Tp->getElementType(), InsertIndex);
+    FixedVectorType *DesTp =
+        FixedVectorType::getDoubleElementsVectorType(SubTp);
+    std::pair<InstructionCost, MVT> DesLT = getTypeLegalizationCost(DesTp);
+    // Add the cost of whole vector register move because the destination vector
+    // register group for vslideup cannot overlap the source.
+    Cost += DesLT.first * TLI->getLMULCost(DesLT.second);
+    Cost += getShuffleCost(TTI::SK_InsertSubvector, DesTp, {}, CostKind,
+                           InsertIndex, SubTp);
+  }
+  return Cost;
 }
 
 static VectorType *getVRGatherIndexType(MVT DataVT, const RISCVSubtarget &ST,
