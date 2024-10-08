@@ -477,6 +477,9 @@ Bug Fixes to C++ Support
   conformance of explicit instantiation behaviour with MSVC. (#GH111266)
 - Fixed a bug in constraint expression comparison where the ``sizeof...`` expression was not handled properly
   in certain friend declarations. (#GH93099)
+- Clang incorrectly considered a class with an anonymous union member to not be
+  const-default-constructible even if a union member has a default member initializer.
+  (#GH95854).
 
 Bug Fixes to AST Handling
 ^^^^^^^^^^^^^^^^^^^^^^^^^
