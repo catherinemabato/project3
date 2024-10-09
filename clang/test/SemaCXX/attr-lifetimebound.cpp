@@ -77,18 +77,20 @@ namespace usage_ok {
 
 namespace std {
   using size_t = __SIZE_TYPE__;
-  struct string {
-    string();
-    string(const char*);
+  template<typename T>
+  struct basic_string {
+    basic_string();
+    basic_string(const T*);
 
     char &operator[](size_t) const [[clang::lifetimebound]];
   };
+  using string =  basic_string<char>;
   string operator""s(const char *, size_t); // expected-warning {{}}
 
   template<typename T>
   struct basic_string_view {
     basic_string_view();
-    basic_string_view(const T *p [[clang::lifetimebound]]);
+    basic_string_view(const T *p);
     basic_string_view(const string &s [[clang::lifetimebound]]);
   };
   using string_view = basic_string_view<char>;
@@ -112,7 +114,7 @@ namespace p0936r0_examples {
   void f() {
     std::string_view sv = "hi";
     std::string_view sv2 = sv + sv; // expected-warning {{temporary}}
-    sv2 = sv + sv; // FIXME: can we infer that we should warn here too?
+    sv2 = sv + sv; // expected-warning {{object backing the pointer}}
   }
 
   struct X { int a, b; };
