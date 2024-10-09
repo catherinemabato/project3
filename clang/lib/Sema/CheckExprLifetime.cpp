@@ -1413,8 +1413,14 @@ static void checkExprLifetimeImpl(Sema &SemaRef,
   llvm::SmallVector<IndirectLocalPathEntry, 8> Path;
   if (LK == LK_Assignment && shouldRunGSLAssignmentAnalysis(SemaRef, *CEntity))
     Path.push_back({IndirectLocalPathEntry::GslPointerAssignment, Init});
-  else if (LK == LK_LifetimeCapture)
+  else if (LK == LK_LifetimeCapture) {
+    // Skip the top MaterializeTemoraryExpr if it is temporary object of the
+    // pointer-like type itself.
+    if (auto *MTE = dyn_cast<MaterializeTemporaryExpr>(Init);
+        MTE && isPointerLikeType(Init->getType()))
+      Init = MTE->getSubExpr();
     Path.push_back({IndirectLocalPathEntry::LifetimeCapture, Init});
+  }
 
   if (Init->isGLValue())
     visitLocalsRetainedByReferenceBinding(Path, Init, RK_ReferenceBinding,

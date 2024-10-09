@@ -3893,7 +3893,8 @@ LifetimeCaptureByAttr *Sema::ParseLifetimeCaptureByAttr(const ParsedAttr &AL,
     ParamIdents.push_back(IdLoc->Ident);
     ParamLocs.push_back(IdLoc->Loc);
   }
-  SmallVector<int, 1> FakeParamIndices(ParamIdents.size(), -2);
+  SmallVector<int, 1> FakeParamIndices(ParamIdents.size(),
+                                       LifetimeCaptureByAttr::INVALID);
   LifetimeCaptureByAttr *CapturedBy = ::new (Context) LifetimeCaptureByAttr(
       Context, AL, FakeParamIndices.data(), FakeParamIndices.size());
   CapturedBy->setArgs(std::move(ParamIdents), std::move(ParamLocs));
@@ -3919,8 +3920,8 @@ void Sema::LazyProcessLifetimeCaptureByParams(FunctionDecl *FD) {
   bool HasImplicitThisParam = isInstanceMethod(FD);
 
   llvm::StringMap<int> NameIdxMapping;
-  NameIdxMapping["global"] = -1;
-  NameIdxMapping["unknown"] = -1;
+  NameIdxMapping["global"] = LifetimeCaptureByAttr::GLOBAL;
+  NameIdxMapping["unknown"] = LifetimeCaptureByAttr::UNKNOWN;
   int Idx = 0;
   if (HasImplicitThisParam) {
     NameIdxMapping["this"] = 0;

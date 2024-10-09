@@ -75,7 +75,6 @@ namespace usage_ok {
   }
 }
 
-# 1 "<std>" 1 3
 namespace std {
   using size_t = __SIZE_TYPE__;
   struct string {
@@ -84,14 +83,16 @@ namespace std {
 
     char &operator[](size_t) const [[clang::lifetimebound]];
   };
-  string operator""s(const char *, size_t);
+  string operator""s(const char *, size_t); // expected-warning {{}}
 
-  struct string_view {
-    string_view();
-    string_view(const char *p [[clang::lifetimebound]]);
-    string_view(const string &s [[clang::lifetimebound]]);
+  template<typename T>
+  struct basic_string_view {
+    basic_string_view();
+    basic_string_view(const T *p [[clang::lifetimebound]]);
+    basic_string_view(const string &s [[clang::lifetimebound]]);
   };
-  string_view operator""sv(const char *, size_t);
+  using string_view = basic_string_view<char>;
+  string_view operator""sv(const char *, size_t); // expected-warning {{}}
 
   struct vector {
     int *data();
@@ -100,7 +101,6 @@ namespace std {
 
   template<typename K, typename V> struct map {};
 }
-# 68 "attr-lifetimebound.cpp" 2
 
 using std::operator""s;
 using std::operator""sv;
@@ -238,11 +238,6 @@ template <class T> T *addressof(T &arg) {
         &const_cast<char &>(reinterpret_cast<const volatile char &>(arg)));
 }
 
-template<typename T>
-struct basic_string_view {
-  basic_string_view(const T *);
-};
-
 template <class T> struct span {
   template<size_t _ArrayExtent>
 	span(const T (&__arr)[_ArrayExtent]) noexcept;
@@ -360,22 +355,28 @@ struct ThisIsCaptured {
 // Detect dangling cases.
 ///////////////////////////
 void captureInt(const int&x [[clang::lifetime_capture_by(s)]], S&s);
+void captureRValInt(int&&x [[clang::lifetime_capture_by(s)]], S&s);
 void noCaptureInt(int x [[clang::lifetime_capture_by(s)]], S&s);
 
 std::string_view substr(const std::string& s [[clang::lifetimebound]]);
 std::string_view strcopy(const std::string& s);
 
 void captureSV(std::string_view x [[clang::lifetime_capture_by(s)]], S&s);
-void captureS(const std::string& x [[clang::lifetime_capture_by(s)]], S&s);
+void captureRValSV(std::string_view&& x [[clang::lifetime_capture_by(s)]], S&s);
 void noCaptureSV(std::string_view x, S&s);
+
+void captureS(const std::string& x [[clang::lifetime_capture_by(s)]], S&s);
+void captureRValS(std::string&& x [[clang::lifetime_capture_by(s)]], S&s);
 
 void use() {
   std::string_view local_sv;
   std::string local_s;
   S s;
+  // Capture an 'int'.
   int local;
-  captureInt(1, // expected-warning {{object captured by the 's' will be destroyed at the end of the full-expression}}
+  captureInt(1, // expected-warning {{object captured by 's' will be destroyed at the end of the full-expression}}
             s);
+  captureRValInt(1, s); // expected-warning {{object captured by 's'}}
   captureInt(local, s);
   
   noCaptureInt(1, s);
@@ -383,30 +384,39 @@ void use() {
 
   // Capture using std::string_view.
   captureSV(local_sv, s);
-  captureSV(std::string(), // expected-warning {{object captured by the 's'}}
+  captureSV(std::string(), // expected-warning {{object captured by 's'}}
             s);
   captureSV(substr(
-      std::string() // expected-warning {{object captured by the 's'}}
+      std::string() // expected-warning {{object captured by 's'}}
       ), s);
   captureSV(substr(local_s), s);
   captureSV(strcopy(std::string()), s);
+
+  captureRValSV(std::move(local_sv), s);
+  captureRValSV(std::string(), s); // expected-warning {{object captured by 's'}}
+  captureRValSV(std::string_view{"abcd"}, s);
+  captureRValSV(substr(local_s), s);
+  captureRValSV(substr(std::string()), s); // expected-warning {{object captured by 's'}}
+  captureRValSV(strcopy(std::string()), s);
 
   noCaptureSV(local_sv, s);
   noCaptureSV(std::string(), s);
   noCaptureSV(substr(std::string()), s);
 
   // Capture using std::string.
-  captureS(std::string(), s); // expected-warning {{object captured by the 's'}}
+  captureS(std::string(), s); // expected-warning {{object captured by 's'}}
   captureS(local_s, s);
+  captureRValS(std::move(local_s), s);
+  captureRValS(std::string(), s); // expected-warning {{object captured by 's'}}
 
   // Member functions.  
-  s.captureInt(1); // expected-warning {{object captured by the 's' will be destroyed at the end of the full-expression}}
-  s.captureSV(std::string()); // expected-warning {{object captured by the 's'}}
-  s.captureSV(substr(std::string())); // expected-warning {{object captured by the 's'}}
+  s.captureInt(1); // expected-warning {{object captured by 's' will be destroyed at the end of the full-expression}}
+  s.captureSV(std::string()); // expected-warning {{object captured by 's'}}
+  s.captureSV(substr(std::string())); // expected-warning {{object captured by 's'}}
   s.captureSV(strcopy(std::string()));
 
   // This is captured.
-  ThisIsCaptured{}.capture(s); //expected-warning {{object captured by the 's'}}
+  ThisIsCaptured{}.capture(s); //expected-warning {{object captured by 's'}}
   ThisIsCaptured TIS;
   TIS.capture(s);
 }

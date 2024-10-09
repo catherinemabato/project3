@@ -1895,10 +1895,10 @@ private:
   SmallVector<SourceLocation, 1> ArgLocs;
 
 public:
-  static const int INVALID = -2;
-  static const int UNKNOWN = -1;
-  static const int GLOBAL = -1;
-  static const int THIS = 0;
+  static constexpr int INVALID = -2;
+  static constexpr int UNKNOWN = -1;
+  static constexpr int GLOBAL = -1;
+  static constexpr int THIS = 0;
 
   void setArgs(SmallVector<IdentifierInfo*, 1> Idents,
                SmallVector<SourceLocation, 1> Locs) { 
