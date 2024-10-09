@@ -1359,6 +1359,11 @@ bool TargetTransformInfo::hasActiveVectorLength(unsigned Opcode, Type *DataType,
   return TTIImpl->hasActiveVectorLength(Opcode, DataType, Alignment);
 }
 
+bool TargetTransformInfo::hasVectorMatch(VectorType *VT,
+                                         unsigned SearchSize) const {
+  return TTIImpl->hasVectorMatch(VT, SearchSize);
+}
+
 TargetTransformInfo::Concept::~Concept() = default;
 
 TargetIRAnalysis::TargetIRAnalysis() : TTICallback(&getDefaultTTI) {}
