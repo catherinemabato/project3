@@ -335,6 +335,8 @@ public:
 
   bool hasArmWideBranch(bool Thumb) const;
 
+  unsigned getNumBytesToPadGlobalArray(unsigned Size, Type *ArrayType) const;
+
   /// @}
 };
 
