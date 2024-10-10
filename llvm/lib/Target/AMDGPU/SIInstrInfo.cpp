@@ -2754,7 +2754,7 @@ static MachineInstr *swapNonRegOperands(MachineInstr &MI,
     NonRegOp1.setTargetFlags(NonRegOp2.getTargetFlags());
     NonRegOp2.setTargetFlags(TargetFlags);
   }
-  // --> Still working on the FrameInfo case.
+  // --> Still working on the FrameInfo case :)
   // else if (NonRegOp1.isFI() && NonRegOp2.isFI()){
   //   auto TargetFlags = NonRegOp1.getTargetFlags();
   //   auto FrameIndex = NonRegOp1.getIndex();  
@@ -2825,9 +2825,6 @@ MachineInstr *SIInstrInfo::commuteInstructionImpl(MachineInstr &MI, bool NewMI,
       CommutedMI = swapRegAndNonRegOperand(MI, Src1, Src0);
   } else {
       CommutedMI = swapNonRegOperands(MI, Src1, Src0);
-    
-    // FIXME: Found two non registers to commute. This does happen.
-    // return nullptr;
   }
 
   if (CommutedMI) {
