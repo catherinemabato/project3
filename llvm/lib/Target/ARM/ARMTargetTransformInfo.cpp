@@ -2651,10 +2651,10 @@ bool ARMTTIImpl::hasArmWideBranch(bool Thumb) const {
 
 unsigned ARMTTIImpl::getNumBytesToPadGlobalArray(unsigned Size,
                                                  Type *ArrayType) const {
-    if (!UseWidenGlobalArrays){
-        LLVM_DEBUG(dbgs() << "Padding global arrays disabled\n");
-        return false;
-    }
+  if (!UseWidenGlobalArrays) {
+    LLVM_DEBUG(dbgs() << "Padding global arrays disabled\n");
+    return false;
+  }
 
   // Don't modify none integer array types
   if (!ArrayType || !ArrayType->isArrayTy() ||
