@@ -264,6 +264,24 @@ public:
     return lowerToBindAndAnnotateHandle(F);
   }
 
+  Error replaceSplitDoubleCallUsages(CallInst *Intrin, CallInst *Op) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+
+    for (Use &U : make_early_inc_range(Intrin->uses())) {
+      if (auto *EVI = dyn_cast<ExtractValueInst>(U.getUser())) {
+
+        if (EVI->getNumIndices() != 1)
+          return createStringError(std::errc::invalid_argument,
+                                   "Splitdouble has only 2 elements");
+        EVI->setOperand(0, Op);
+      }
+    }
+
+    Intrin->eraseFromParent();
+
+    return Error::success();
+  }
+
   /// Replace uses of \c Intrin with the values in the `dx.ResRet` of \c Op.
   /// Since we expect to be post-scalarization, make an effort to avoid vectors.
   Error replaceResRetUses(CallInst *Intrin, CallInst *Op, bool HasCheckBit) {
@@ -461,6 +479,27 @@ public:
     });
   }
 
+  [[nodiscard]] bool lowerSplitDouble(Function &F) {
+    IRBuilder<> &IRB = OpBuilder.getIRB();
+    return replaceFunction(F, [&](CallInst *CI) -> Error {
+      IRB.SetInsertPoint(CI);
+
+      Value *Arg0 = CI->getArgOperand(0);
+
+      Type *NewRetTy = OpBuilder.getResSplitDoubleType(M.getContext());
+
+      std::array<Value *, 1> Args{Arg0};
+      Expected<CallInst *> OpCall = OpBuilder.tryCreateOp(
+          OpCode::SplitDouble, Args, CI->getName(), NewRetTy);
+      if (Error E = OpCall.takeError())
+        return E;
+      if (Error E = replaceSplitDoubleCallUsages(CI, *OpCall))
+        return E;
+
+      return Error::success();
+    });
+  }
+
   bool lowerIntrinsics() {
     bool Updated = false;
     bool HasErrors = false;
@@ -488,6 +527,9 @@ public:
         break;
       case Intrinsic::dx_typedBufferStore:
         HasErrors |= lowerTypedBufferStore(F);
+        break;
+      case Intrinsic::dx_splitdouble:
+        HasErrors |= lowerSplitDouble(F);
         break;
       }
       Updated = true;
