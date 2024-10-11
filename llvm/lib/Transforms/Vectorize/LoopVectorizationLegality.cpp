@@ -894,7 +894,8 @@ bool LoopVectorizationLegality::canVectorizeInstrs() {
         // Check if the PHI can be classified as a CSA PHI.
         if (EnableCSA || (TTI->enableCSAVectorization() &&
                           EnableCSA.getNumOccurrences() == 0)) {
-          if (auto CSADesc = CSADescriptor::isCSAPhi(Phi, TheLoop)) {
+          CSADescriptor CSADesc;
+          if (CSADescriptor::isCSAPhi(Phi, TheLoop, CSADesc)) {
             addCSAPhi(Phi, CSADesc, AllowedExit);
             continue;
           }
