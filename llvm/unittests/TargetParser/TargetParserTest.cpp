@@ -1361,6 +1361,7 @@ TEST(TargetParserTest, AArch64ExtensionFeatures) {
   EXPECT_TRUE(llvm::is_contained(Features, "+sve"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve-b16b16"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve-bfscale"));
+  EXPECT_TRUE(llvm::is_contained(Features, "+sve-f16f32mm"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2-aes"));
   EXPECT_TRUE(llvm::is_contained(Features, "+sve2-sm4"));
@@ -1525,6 +1526,7 @@ TEST(TargetParserTest, AArch64ArchExtFeature) {
       {"sve", "nosve", "+sve", "-sve"},
       {"sve-b16b16", "nosve-b16b16", "+sve-b16b16", "-sve-b16b16"},
       {"sve-bfscale", "nosve-bfscale", "+sve-bfscale", "-sve-bfscale"},
+      {"sve-f16f32mm", "nosve-f16f32mm", "+sve-f16f32mm", "-sve-f16f32mm"},
       {"sve2", "nosve2", "+sve2", "-sve2"},
       {"sve2-aes", "nosve2-aes", "+sve2-aes", "-sve2-aes"},
       {"sve2-sm4", "nosve2-sm4", "+sve2-sm4", "-sve2-sm4"},
@@ -1845,11 +1847,10 @@ AArch64ExtensionDependenciesBaseArchTestParams
          {},
          {"sve-b16b16", "sve-bfscale"}},
 
-        // sve2p1 -> {sve2p2}
+        // sve2p1 -> {sve2p2, sve-f16f32mm}
         {AArch64::ARMV9_6A, {"nosve2p1", "sve2p2"}, {"sve2p1", "sve2p2"}, {}},
         {AArch64::ARMV9_6A, {"sve2p2", "nosve2p1"}, {}, {"sve2p1", "sve2p2"}},
 
-        // sve2p1 -> sve-f16f32mm
         {AArch64::ARMV9_6A,
          {"nosve2p1", "sve-f16f32mm"},
          {"sve2p1", "sve-f16f32mm"},
