@@ -390,8 +390,8 @@ bool VPInstruction::canGenerateScalarForFirstLane() const {
   case VPInstruction::ExplicitVectorLength:
   case VPInstruction::CSAVLSel:
   case VPInstruction::CSAVLPhi:
-  case VPInstruction::CSAAnyActive:
-  case VPInstruction::CSAAnyActiveEVL:
+  case VPInstruction::AnyActive:
+  case VPInstruction::AnyActiveEVL:
     return true;
   default:
     return false;
@@ -705,11 +705,11 @@ Value *VPInstruction::generate(VPTransformState &State) {
     cast<PHINode>(MaskPhi)->addIncoming(MaskSel, State.CFG.PrevBB);
     return MaskSel;
   }
-  case VPInstruction::CSAAnyActive: {
+  case VPInstruction::AnyActive: {
     Value *WidenedCond = State.get(getOperand(0));
     return Builder.CreateOrReduce(WidenedCond);
   }
-  case VPInstruction::CSAAnyActiveEVL: {
+  case VPInstruction::AnyActiveEVL: {
     Value *WidenedCond = State.get(getOperand(0));
     Value *AllOnesMask = Constant::getAllOnesValue(
         VectorType::get(Type::getInt1Ty(State.Builder.getContext()), State.VF));
@@ -720,7 +720,7 @@ Value *VPInstruction::generate(VPTransformState &State) {
     Value *AnyActive = State.Builder.CreateIntrinsic(
         WidenedCond->getType()->getScalarType(), Intrinsic::vp_reduce_or,
         {StartValue, WidenedCond, AllOnesMask, EVL}, nullptr,
-        "csa.cond.anyactive");
+        "any.active");
     return AnyActive;
   }
   case VPInstruction::CSAVLPhi: {
@@ -753,8 +753,8 @@ Value *VPInstruction::generate(VPTransformState &State) {
 bool VPInstruction::isVectorToScalar() const {
   return getOpcode() == VPInstruction::ExtractFromEnd ||
          getOpcode() == VPInstruction::ComputeReductionResult ||
-         getOpcode() == VPInstruction::CSAAnyActive ||
-         getOpcode() == VPInstruction::CSAAnyActiveEVL;
+         getOpcode() == VPInstruction::AnyActive ||
+         getOpcode() == VPInstruction::AnyActiveEVL;
 }
 
 bool VPInstruction::isSingleScalar() const {
@@ -947,11 +947,11 @@ void VPInstruction::print(raw_ostream &O, const Twine &Indent,
   case VPInstruction::CSAVLSel:
     O << "csa-vl-sel";
     break;
-  case VPInstruction::CSAAnyActive:
-    O << "csa-anyactive";
+  case VPInstruction::AnyActive:
+    O << "anyactive";
     break;
-  case VPInstruction::CSAAnyActiveEVL:
-    O << "csa-anyactive-evl";
+  case VPInstruction::AnyActiveEVL:
+    O << "anyactive-evl";
     break;
   default:
     O << Instruction::getOpcodeName(getOpcode());
@@ -2346,7 +2346,7 @@ InstructionCost VPCSADataUpdateRecipe::computeCost(ElementCount VF,
   // them here for now since they are related to updating the data and there is
   // no VPInstruction::computeCost support at the moment.
 
-  // CSAAnyActive
+  // AnyActive
   C += TTI.getArithmeticReductionCost(Instruction::Or, VTy, std::nullopt,
                                       CostKind);
   // VPVLSel

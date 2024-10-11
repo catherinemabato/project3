@@ -240,9 +240,9 @@ public:
     return createInstruction(VPInstruction::CSAMaskPhi, {InitMask}, DL, Name);
   }
 
-  VPInstruction *createCSAAnyActive(VPValue *Cond, DebugLoc DL,
+  VPInstruction *createAnyActive(VPValue *Cond, DebugLoc DL,
                                     const Twine &Name) {
-    return createInstruction(VPInstruction::CSAAnyActive, {Cond}, DL, Name);
+    return createInstruction(VPInstruction::AnyActive, {Cond}, DL, Name);
   }
 
   VPInstruction *createCSAMaskSel(VPValue *Cond, VPValue *MaskPhi,
@@ -252,9 +252,9 @@ public:
                              {Cond, MaskPhi, AnyActive}, DL, Name);
   }
 
-  VPInstruction *createCSAAnyActiveEVL(VPValue *Cond, VPValue *EVL, DebugLoc DL,
+  VPInstruction *createAnyActiveEVL(VPValue *Cond, VPValue *EVL, DebugLoc DL,
                                        const Twine &Name) {
-    return createInstruction(VPInstruction::CSAAnyActiveEVL, {Cond, EVL}, DL,
+    return createInstruction(VPInstruction::AnyActiveEVL, {Cond, EVL}, DL,
                              Name);
   }
 

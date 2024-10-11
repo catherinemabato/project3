@@ -156,7 +156,7 @@ bool VPlanVerifier::verifyEVLRecipe(const VPInstruction &EVL) const {
                  [&](const VPScalarCastRecipe *S) { return true; })
              .Case<VPInstruction>([&](const VPInstruction *I) {
                unsigned Opc = I->getOpcode();
-               if (Opc == VPInstruction::CSAAnyActiveEVL ||
+               if (Opc == VPInstruction::AnyActiveEVL ||
                    Opc == VPInstruction::CSAVLSel)
                  return true;
 

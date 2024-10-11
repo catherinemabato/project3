@@ -8761,7 +8761,7 @@ addCSAPostprocessRecipes(VPRecipeBuilder &RecipeBuilder,
     }
 
     auto *VPAnyActive =
-        B.createCSAAnyActive(CondToUse, DL, "csa.cond.anyactive");
+        B.createAnyActive(CondToUse, DL, "csa.cond.anyactive");
     VPAnyActive->insertBefore(
         GetVPValue(CSA.second.getAssignment())->getDefiningRecipe());
 

@@ -1350,19 +1350,19 @@ void VPlanTransforms::addActiveLaneMask(
 }
 
 /// Add recipes required to make CSA work with EVL based approach. This
-/// includes replacing \p CSAAnyActive with \p CSAAnyActiveEVL, and adding \p
+/// includes replacing \p AnyActive with \p AnyActiveEVL, and adding \p
 /// CSAVLPhi and \p CSAVLSel instructions.
 static void addExplicitVectorLengthForCSA(
     VPValue &EVL, const MapVector<PHINode *, VPCSAState *> &CSAStates) {
   for (auto &[_, CSAState] : CSAStates) {
-    // CSAAnyActive is used to keep track of whether any condition on the
+    // AnyActive is used to keep track of whether any condition on the
     // current iteration is active. This is used to decide whether the mask
     // should be updated. When we are using EVL, we must only consider the first
-    // EVL number of elements in the mask. Replace CSAAnyActive with the EVL
-    // specific CSAAnyActiveEVL instruction.
+    // EVL number of elements in the mask. Replace AnyActive with the EVL
+    // specific AnyActiveEVL instruction.
     auto *VPAnyActive = CSAState->getVPAnyActive();
     VPBuilder B;
-    auto *VPAnyActiveEVL = B.createCSAAnyActiveEVL(
+    auto *VPAnyActiveEVL = B.createAnyActiveEVL(
         VPAnyActive->getOperand(0), &EVL, VPAnyActive->getDebugLoc(),
         "csa.cond.anyactive");
     VPAnyActiveEVL->insertBefore(VPAnyActive);

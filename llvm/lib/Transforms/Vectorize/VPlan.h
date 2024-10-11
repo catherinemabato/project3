@@ -1320,8 +1320,8 @@ public:
     CSAMaskSel,
     CSAVLPhi,
     CSAVLSel,
-    CSAAnyActive,
-    CSAAnyActiveEVL,
+    AnyActive,
+    AnyActiveEVL,
   };
 
 private:
