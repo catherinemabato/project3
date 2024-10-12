@@ -663,6 +663,7 @@ clang-format
 - Adds ``BreakBinaryOperations`` option.
 - Adds ``TemplateNames`` option.
 - Adds ``AlignFunctionDeclarations`` option to ``AlignConsecutiveDeclarations``.
+- Extends ``BasedOnStyle`` option to support inheriting styles from an arbitrary file path
 
 libclang
 --------
