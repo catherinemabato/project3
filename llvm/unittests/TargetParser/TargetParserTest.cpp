@@ -1614,7 +1614,7 @@ TEST_P(AArch64ExtensionDependenciesBaseArchTestFixture,
   auto Params = GetParam();
 
   llvm::AArch64::ExtensionSet Extensions;
-  Extensions.addArchDefaults(Params.Arch);
+  Extensions.addArchFeatures(Params.Arch);
   for (auto M : Params.Modifiers) {
     bool success = Extensions.parseModifier(M);
     EXPECT_TRUE(success);
@@ -1648,7 +1648,7 @@ TEST_P(AArch64ExtensionDependenciesBaseCPUTestFixture,
   const std::optional<llvm::AArch64::CpuInfo> CPU =
       llvm::AArch64::parseCpu(Params.CPUName);
   EXPECT_TRUE(CPU);
-  Extensions.addCPUDefaults(*CPU);
+  Extensions.addCPUFeatures(*CPU);
   for (auto M : Params.Modifiers) {
     bool success = Extensions.parseModifier(M);
     EXPECT_TRUE(success);
