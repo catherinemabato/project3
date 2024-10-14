@@ -673,18 +673,6 @@ Value *VPInstruction::generate(VPTransformState &State) {
     }
     return NewPhi;
   }
-  case VPInstruction::CSAInitMask: {
-    Value *InitMask = ConstantAggregateZero::get(
-        VectorType::get(Type::getInt1Ty(State.Builder.getContext()), State.VF));
-    State.set(this, InitMask);
-    return InitMask;
-  }
-  case VPInstruction::CSAInitData: {
-    Type *ElemTyp = getOperand(0)->getUnderlyingValue()->getType();
-    Value *InitData = PoisonValue::get(VectorType::get(ElemTyp, State.VF));
-    State.set(this, InitData);
-    return InitData;
-  }
   case VPInstruction::CSAMaskPhi: {
     IRBuilder<>::InsertPointGuard Guard(State.Builder);
     State.Builder.SetInsertPoint(State.CFG.PrevBB->getFirstNonPHI());
@@ -928,12 +916,6 @@ void VPInstruction::print(raw_ostream &O, const Twine &Indent,
     break;
   case VPInstruction::PtrAdd:
     O << "ptradd";
-    break;
-  case VPInstruction::CSAInitMask:
-    O << "csa-init-mask";
-    break;
-  case VPInstruction::CSAInitData:
-    O << "csa-init-data";
     break;
   case VPInstruction::CSAMaskPhi:
     O << "csa-mask-phi";

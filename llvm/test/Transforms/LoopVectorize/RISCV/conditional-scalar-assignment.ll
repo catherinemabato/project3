@@ -41,7 +41,7 @@ define i32 @simple_csa_int_select(i32 %N, ptr %data, i64 %a) {
 ; EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[EVL_BASED_IV:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_EVL_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[AVL:%.*]] = sub i64 [[WIDE_TRIP_COUNT]], [[EVL_BASED_IV]]
 ; EVL-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.get.vector.length.i64(i64 [[AVL]], i32 4, i1 true)
@@ -112,7 +112,7 @@ define i32 @simple_csa_int_select(i32 %N, ptr %data, i64 %a) {
 ; NO-EVL:       [[VECTOR_BODY]]:
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP6:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP7:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[TMP6]]
 ; NO-EVL-NEXT:    [[TMP8:%.*]] = getelementptr inbounds i32, ptr [[TMP7]], i32 0
@@ -194,8 +194,31 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t; // use t
 ; }
 define i32 @simple_csa_int_select_induction_cmp(i32 %N, ptr %data) {
-; EVL-LABEL: @simple_csa_int_select_induction_cmp(
-; EVL-NOT: vector.body:
+; EVL-LABEL: define i32 @simple_csa_int_select_induction_cmp(
+; EVL-SAME: i32 [[N:%.*]], ptr [[DATA:%.*]]) #[[ATTR0]] {
+; EVL-NEXT:  [[ENTRY:.*]]:
+; EVL-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[N]], 0
+; EVL-NEXT:    br i1 [[CMP9]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; EVL:       [[LOOP_PREHEADER]]:
+; EVL-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; EVL-NEXT:    br label %[[LOOP:.*]]
+; EVL:       [[EXIT_LOOPEXIT:.*]]:
+; EVL-NEXT:    [[SPEC_SELECT_LCSSA:%.*]] = phi i32 [ [[SPEC_SELECT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    br label %[[EXIT]]
+; EVL:       [[EXIT]]:
+; EVL-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ -1, %[[ENTRY]] ], [ [[SPEC_SELECT_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; EVL-NEXT:    ret i32 [[T_0_LCSSA]]
+; EVL:       [[LOOP]]:
+; EVL-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    [[T_010:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[SPEC_SELECT]], %[[LOOP]] ]
+; EVL-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[IV]]
+; EVL-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; EVL-NEXT:    [[TMP1:%.*]] = sext i32 [[TMP0]] to i64
+; EVL-NEXT:    [[CMP1:%.*]] = icmp slt i64 [[IV]], [[TMP1]]
+; EVL-NEXT:    [[SPEC_SELECT]] = select i1 [[CMP1]], i32 [[TMP0]], i32 [[T_010]]
+; EVL-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 ; NO-EVL-LABEL: define i32 @simple_csa_int_select_induction_cmp(
 ; NO-EVL-SAME: i32 [[N:%.*]], ptr [[DATA:%.*]]) #[[ATTR0]] {
@@ -227,7 +250,7 @@ define i32 @simple_csa_int_select_induction_cmp(i32 %N, ptr %data) {
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[VEC_IND:%.*]] = phi <vscale x 4 x i64> [ [[INDUCTION]], %[[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[TMP10]]
 ; NO-EVL-NEXT:    [[TMP12:%.*]] = getelementptr inbounds i32, ptr [[TMP11]], i32 0
@@ -332,7 +355,7 @@ define float @simple_csa_float_select(i32 %N, ptr %data) {
 ; EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[EVL_BASED_IV:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_EVL_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[AVL:%.*]] = sub i64 [[WIDE_TRIP_COUNT]], [[EVL_BASED_IV]]
 ; EVL-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.get.vector.length.i64(i64 [[AVL]], i32 4, i1 true)
@@ -399,7 +422,7 @@ define float @simple_csa_float_select(i32 %N, ptr %data) {
 ; NO-EVL:       [[VECTOR_BODY]]:
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP6:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP7:%.*]] = getelementptr inbounds float, ptr [[DATA]], i64 [[TMP6]]
 ; NO-EVL-NEXT:    [[TMP8:%.*]] = getelementptr inbounds float, ptr [[TMP7]], i32 0
@@ -478,8 +501,36 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t; // use t
 ; }
 define i32 @simple_csa_int(i32 %N, ptr %cond, ptr %data) {
-; CHECK-LABEL: @simple_csa_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @simple_csa_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND:%.*]], ptr [[DATA:%.*]]) #[[ATTR0:[0-9]+]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP6:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP6]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi i32 [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ -1, %[[ENTRY]] ], [ [[T_1_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret i32 [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_07:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[FOR_INC]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi i32 [ [[TMP1]], %[[IF_THEN]] ], [ [[T_07]], %[[LOOP]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp6 = icmp sgt i32 %N, 0
@@ -523,8 +574,36 @@ for.inc:                                          ; preds = %loop, %if.then
 ;   return t; // use t
 ; }
 define float @simple_csa_float(i32 %N, ptr %cond, ptr %data) {
-; CHECK-LABEL: @simple_csa_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @simple_csa_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND:%.*]], ptr [[DATA:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP6:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP6]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi float [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi float [ 1.000000e+00, %[[ENTRY]] ], [ [[T_1_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret float [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_07:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[FOR_INC]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi float [ [[TMP1]], %[[IF_THEN]] ], [ [[T_07]], %[[LOOP]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp6 = icmp sgt i32 %N, 0
@@ -596,9 +675,9 @@ define i32 @csa_in_series_int_select(i32 %N, ptr %data0, ptr %data1, i64 %a) {
 ; EVL-NEXT:    [[EVL_BASED_IV:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_EVL_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL7:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI1:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL8:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL8:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL6:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI3:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[AVL:%.*]] = sub i64 [[WIDE_TRIP_COUNT]], [[EVL_BASED_IV]]
 ; EVL-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.get.vector.length.i64(i64 [[AVL]], i32 4, i1 true)
@@ -692,8 +771,8 @@ define i32 @csa_in_series_int_select(i32 %N, ptr %data0, ptr %data1, i64 %a) {
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL4:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI1:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP6:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP7:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[TMP6]]
 ; NO-EVL-NEXT:    [[TMP8:%.*]] = getelementptr inbounds i32, ptr [[TMP7]], i32 0
@@ -814,8 +893,39 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t | s; // use t and s
 ; }
 define i32 @csa_in_series_int_select_induction_cmp(i32 %N, ptr %data0, ptr %data1) {
-; EVL-LABEL: @csa_in_series_int_select_induction_cmp(
-; EVL-NOT: vector.body:
+; EVL-LABEL: define i32 @csa_in_series_int_select_induction_cmp(
+; EVL-SAME: i32 [[N:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; EVL-NEXT:  [[ENTRY:.*]]:
+; EVL-NEXT:    [[CMP21:%.*]] = icmp sgt i32 [[N]], 0
+; EVL-NEXT:    br i1 [[CMP21]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; EVL:       [[LOOP_PREHEADER]]:
+; EVL-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; EVL-NEXT:    br label %[[LOOP:.*]]
+; EVL:       [[EXIT_LOOPEXIT:.*]]:
+; EVL-NEXT:    [[SPEC_SELECT_LCSSA:%.*]] = phi i32 [ [[SPEC_SELECT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    [[S_1_LCSSA:%.*]] = phi i32 [ [[S_1:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    [[TMP0:%.*]] = or i32 [[S_1_LCSSA]], [[SPEC_SELECT_LCSSA]]
+; EVL-NEXT:    br label %[[EXIT]]
+; EVL:       [[EXIT]]:
+; EVL-NEXT:    [[OR:%.*]] = phi i32 [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ -1, %[[ENTRY]] ]
+; EVL-NEXT:    ret i32 [[OR]]
+; EVL:       [[LOOP]]:
+; EVL-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    [[S_023:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[LOOP]] ]
+; EVL-NEXT:    [[T_022:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[SPEC_SELECT]], %[[LOOP]] ]
+; EVL-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; EVL-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; EVL-NEXT:    [[TMP2:%.*]] = sext i32 [[TMP1]] to i64
+; EVL-NEXT:    [[CMP1:%.*]] = icmp slt i64 [[IV]], [[TMP2]]
+; EVL-NEXT:    [[SPEC_SELECT]] = select i1 [[CMP1]], i32 [[TMP1]], i32 [[T_022]]
+; EVL-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; EVL-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ARRAYIDX5]], align 4
+; EVL-NEXT:    [[TMP4:%.*]] = sext i32 [[TMP3]] to i64
+; EVL-NEXT:    [[CMP6:%.*]] = icmp slt i64 [[IV]], [[TMP4]]
+; EVL-NEXT:    [[S_1]] = select i1 [[CMP6]], i32 [[TMP3]], i32 [[S_023]]
+; EVL-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 ; NO-EVL-LABEL: define i32 @csa_in_series_int_select_induction_cmp(
 ; NO-EVL-SAME: i32 [[N:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
@@ -848,8 +958,8 @@ define i32 @csa_in_series_int_select_induction_cmp(i32 %N, ptr %data0, ptr %data
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL4:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI1:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[VEC_IND:%.*]] = phi <vscale x 4 x i64> [ [[INDUCTION]], %[[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[TMP10]]
 ; NO-EVL-NEXT:    [[TMP12:%.*]] = getelementptr inbounds i32, ptr [[TMP11]], i32 0
@@ -995,9 +1105,9 @@ define float @csa_in_series_float_select(i32 %N, ptr %data0, ptr %data1) {
 ; EVL-NEXT:    [[EVL_BASED_IV:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_EVL_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL7:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI1:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL8:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL8:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL6:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI3:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[AVL:%.*]] = sub i64 [[WIDE_TRIP_COUNT]], [[EVL_BASED_IV]]
 ; EVL-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.get.vector.length.i64(i64 [[AVL]], i32 4, i1 true)
@@ -1085,8 +1195,8 @@ define float @csa_in_series_float_select(i32 %N, ptr %data0, ptr %data1) {
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL4:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI1:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x float> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL5:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI2:%.*]] = phi <vscale x 4 x float> [ shufflevector (<vscale x 4 x float> insertelement (<vscale x 4 x float> poison, float poison, i64 0), <vscale x 4 x float> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP6:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP7:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[TMP6]]
 ; NO-EVL-NEXT:    [[TMP8:%.*]] = getelementptr inbounds float, ptr [[TMP7]], i32 0
@@ -1201,8 +1311,49 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t | s; // use t and s
 ; }
 define i32 @csa_in_series_int(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_in_series_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi i32 [ [[S_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi i32 [ [[T_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[S_1_LCSSA]], [[T_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[OR:%.*]] = phi i32 [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ -1, %[[ENTRY]] ]
+; CHECK-NEXT:    ret i32 [[OR]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_017:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_END:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[IF_END]]
+; CHECK:       [[IF_END]]:
+; CHECK-NEXT:    [[T_1]] = phi i32 [ [[TMP2]], %[[IF_THEN]] ], [ [[T_016]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP3]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[S_1]] = phi i32 [ [[TMP4]], %[[IF_THEN6]] ], [ [[S_017]], %[[IF_END]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1267,8 +1418,49 @@ for.inc:                                          ; preds = %if.end, %if.then6
 ;   return t + s; // use t and s
 ; }
 define float @csa_in_series_float(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_in_series_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi float [ [[S_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi float [ [[T_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = fadd float [[T_1_LCSSA]], [[S_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[ADD:%.*]] = phi float [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ 2.000000e+00, %[[ENTRY]] ]
+; CHECK-NEXT:    ret float [[ADD]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_017:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_END:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[IF_END]]
+; CHECK:       [[IF_END]]:
+; CHECK-NEXT:    [[T_1]] = phi float [ [[TMP2]], %[[IF_THEN]] ], [ [[T_016]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP3]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds float, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP4:%.*]] = load float, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[S_1]] = phi float [ [[TMP4]], %[[IF_THEN6]] ], [ [[S_017]], %[[IF_END]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1332,8 +1524,36 @@ for.inc:                                          ; preds = %if.end, %if.then6
 ;   return t; // use t
 ; }
 define i32 @csa_in_series_same_scalar_int_select(i32 %N, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_same_scalar_int_select(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_in_series_same_scalar_int_select(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP21:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP21]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_2_LCSSA:%.*]] = phi i32 [ [[T_2:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ -1, %[[ENTRY]] ], [ [[T_2_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret i32 [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[T_022:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_2]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[TMP1:%.*]] = sext i32 [[TMP0]] to i64
+; CHECK-NEXT:    [[CMP1:%.*]] = icmp slt i64 [[IV]], [[TMP1]]
+; CHECK-NEXT:    [[SPEC_SELECT:%.*]] = select i1 [[CMP1]], i32 [[TMP0]], i32 [[T_022]]
+; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX5]], align 4
+; CHECK-NEXT:    [[TMP3:%.*]] = sext i32 [[TMP2]] to i64
+; CHECK-NEXT:    [[CMP6:%.*]] = icmp slt i64 [[IV]], [[TMP3]]
+; CHECK-NEXT:    [[T_2]] = select i1 [[CMP6]], i32 [[TMP2]], i32 [[SPEC_SELECT]]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp21 = icmp sgt i32 %N, 0
@@ -1378,8 +1598,34 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t; // use t
 ; }
 define float @csa_in_series_same_scalar_float_select(i32 %N, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_same_scalar_float_select(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_in_series_same_scalar_float_select(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP19:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP19]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_2_LCSSA:%.*]] = phi float [ [[T_2:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi float [ 1.000000e+00, %[[ENTRY]] ], [ [[T_2_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret float [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    [[T_020:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_2]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load float, ptr [[ARRAYIDX]], align 4
+; CHECK-NEXT:    [[CMP1:%.*]] = fcmp ogt float [[TMP0]], 0.000000e+00
+; CHECK-NEXT:    [[T_1:%.*]] = select i1 [[CMP1]], float [[TMP0]], float [[T_020]]
+; CHECK-NEXT:    [[ARRAYIDX5:%.*]] = getelementptr inbounds float, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr [[ARRAYIDX5]], align 4
+; CHECK-NEXT:    [[CMP6:%.*]] = fcmp ogt float [[TMP1]], 0.000000e+00
+; CHECK-NEXT:    [[T_2]] = select i1 [[CMP6]], float [[TMP1]], float [[T_1]]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp19 = icmp sgt i32 %N, 0
@@ -1422,8 +1668,46 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t; // use t
 ; }
 define i32 @csa_in_series_same_scalar_int(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_same_scalar_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_in_series_same_scalar_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_2_LCSSA:%.*]] = phi i32 [ [[T_2:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ -1, %[[ENTRY]] ], [ [[T_2_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret i32 [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_2]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_END:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[IF_END]]
+; CHECK:       [[IF_END]]:
+; CHECK-NEXT:    [[T_1:%.*]] = phi i32 [ [[TMP1]], %[[IF_THEN]] ], [ [[T_016]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP2]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_2]] = phi i32 [ [[TMP3]], %[[IF_THEN6]] ], [ [[T_1]], %[[IF_END]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1482,8 +1766,46 @@ for.inc:                                          ; preds = %if.end, %if.then6
 ;   return t; // use t
 ; }
 define float @csa_in_series_same_scalar_float(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_in_series_same_scalar_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_in_series_same_scalar_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_2_LCSSA:%.*]] = phi float [ [[T_2:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi float [ 1.000000e+00, %[[ENTRY]] ], [ [[T_2_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret float [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_2]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_END:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[IF_END]]
+; CHECK:       [[IF_END]]:
+; CHECK-NEXT:    [[T_1:%.*]] = phi float [ [[TMP1]], %[[IF_THEN]] ], [ [[T_016]], %[[LOOP]] ]
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP2]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds float, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load float, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_2]] = phi float [ [[TMP3]], %[[IF_THEN6]] ], [ [[T_1]], %[[IF_END]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1542,8 +1864,42 @@ for.inc:                                          ; preds = %if.end, %if.then6
 ;   return t | s; // use t and s
 ; }
 define i32 @csa_same_cond_int(i32 %N, ptr %cond, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_same_cond_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_same_cond_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP9]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi i32 [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi i32 [ [[S_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[S_1_LCSSA]], [[T_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[OR:%.*]] = phi i32 [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ -1, %[[ENTRY]] ]
+; CHECK-NEXT:    ret i32 [[OR]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_011:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_010:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[FOR_INC]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr [[ARRAYIDX4]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi i32 [ [[TMP2]], %[[IF_THEN]] ], [ [[T_010]], %[[LOOP]] ]
+; CHECK-NEXT:    [[S_1]] = phi i32 [ [[TMP3]], %[[IF_THEN]] ], [ [[S_011]], %[[LOOP]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp9 = icmp sgt i32 %N, 0
@@ -1598,8 +1954,42 @@ for.inc:                                          ; preds = %loop, %if.then
 ;   return t + s; // use t and s
 ; }
 define float @csa_same_cond_float(i32 %N, ptr %cond, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_same_cond_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_same_cond_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP9]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi float [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi float [ [[S_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = fadd float [[T_1_LCSSA]], [[S_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[ADD:%.*]] = phi float [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ 2.000000e+00, %[[ENTRY]] ]
+; CHECK-NEXT:    ret float [[ADD]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_011:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_010:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[FOR_INC]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds float, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load float, ptr [[ARRAYIDX4]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi float [ [[TMP2]], %[[IF_THEN]] ], [ [[T_010]], %[[LOOP]] ]
+; CHECK-NEXT:    [[S_1]] = phi float [ [[TMP3]], %[[IF_THEN]] ], [ [[S_011]], %[[LOOP]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp9 = icmp sgt i32 %N, 0
@@ -1654,8 +2044,42 @@ for.inc:                                          ; preds = %loop, %if.then
 ;   return t; // use t
 ; }
 define i32 @csa_else_if_same_scalar_int(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_else_if_same_scalar_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_else_if_same_scalar_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi i32 [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ -1, %[[ENTRY]] ], [ [[T_1_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret i32 [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_ELSE:.*]], label %[[FOR_INC_SINK_SPLIT:.*]]
+; CHECK:       [[IF_ELSE]]:
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[FOR_INC_SINK_SPLIT]]
+; CHECK:       [[FOR_INC_SINK_SPLIT]]:
+; CHECK-NEXT:    [[DATA0_SINK:%.*]] = phi ptr [ [[DATA0]], %[[LOOP]] ], [ [[DATA1]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA0_SINK]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi i32 [ [[T_016]], %[[IF_ELSE]] ], [ [[TMP2]], %[[FOR_INC_SINK_SPLIT]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1709,8 +2133,42 @@ for.inc:                                          ; preds = %for.inc.sink.split,
 ;   return t; // use t
 ; }
 define float @csa_else_if_same_scalar_float(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_else_if_same_scalar_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_else_if_same_scalar_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi float [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[T_0_LCSSA:%.*]] = phi float [ 1.000000e+00, %[[ENTRY]] ], [ [[T_1_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret float [[T_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP0]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_ELSE:.*]], label %[[FOR_INC_SINK_SPLIT:.*]]
+; CHECK:       [[IF_ELSE]]:
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[FOR_INC_SINK_SPLIT]]
+; CHECK:       [[FOR_INC_SINK_SPLIT]]:
+; CHECK-NEXT:    [[DATA0_SINK:%.*]] = phi ptr [ [[DATA0]], %[[LOOP]] ], [ [[DATA1]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA0_SINK]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi float [ [[T_016]], %[[IF_ELSE]] ], [ [[TMP2]], %[[FOR_INC_SINK_SPLIT]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1764,8 +2222,49 @@ for.inc:                                          ; preds = %for.inc.sink.split,
 ;   return t | s; // use t and s
 ; }
 define i32 @csa_else_if_int(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_else_if_int(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define i32 @csa_else_if_int(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi i32 [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi i32 [ [[S_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = or i32 [[S_1_LCSSA]], [[T_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[OR:%.*]] = phi i32 [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ -1, %[[ENTRY]] ]
+; CHECK-NEXT:    ret i32 [[OR]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_017:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi i32 [ -1, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_ELSE:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i32, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[IF_ELSE]]:
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP3]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds i32, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi i32 [ [[TMP2]], %[[IF_THEN]] ], [ [[T_016]], %[[IF_THEN6]] ], [ [[T_016]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[S_1]] = phi i32 [ [[S_017]], %[[IF_THEN]] ], [ [[TMP4]], %[[IF_THEN6]] ], [ [[S_017]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1830,8 +2329,49 @@ for.inc:                                          ; preds = %if.then, %if.then6,
 ;   return t + s; // use t and s
 ; }
 define float @csa_else_if_float(i32 %N, ptr %cond0, ptr %cond1, ptr %data0, ptr %data1) {
-; CHECK-LABEL: @csa_else_if_float(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define float @csa_else_if_float(
+; CHECK-SAME: i32 [[N:%.*]], ptr [[COND0:%.*]], ptr [[COND1:%.*]], ptr [[DATA0:%.*]], ptr [[DATA1:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP15:%.*]] = icmp sgt i32 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP15]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[T_1_LCSSA:%.*]] = phi float [ [[T_1:%.*]], %[[FOR_INC:.*]] ]
+; CHECK-NEXT:    [[S_1_LCSSA:%.*]] = phi float [ [[S_1:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[TMP0:%.*]] = fadd float [[T_1_LCSSA]], [[S_1_LCSSA]]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[ADD:%.*]] = phi float [ [[TMP0]], %[[EXIT_LOOPEXIT]] ], [ 2.000000e+00, %[[ENTRY]] ]
+; CHECK-NEXT:    ret float [[ADD]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[S_017:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[S_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[T_016:%.*]] = phi float [ 1.000000e+00, %[[LOOP_PREHEADER]] ], [ [[T_1]], %[[FOR_INC]] ]
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i8, ptr [[COND0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i8, ptr [[ARRAYIDX]], align 1
+; CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq i8 [[TMP1]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label %[[IF_ELSE:.*]], label %[[IF_THEN:.*]]
+; CHECK:       [[IF_THEN]]:
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds float, ptr [[DATA0]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP2:%.*]] = load float, ptr [[ARRAYIDX2]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[IF_ELSE]]:
+; CHECK-NEXT:    [[ARRAYIDX4:%.*]] = getelementptr inbounds i8, ptr [[COND1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP3:%.*]] = load i8, ptr [[ARRAYIDX4]], align 1
+; CHECK-NEXT:    [[TOBOOL5_NOT:%.*]] = icmp eq i8 [[TMP3]], 0
+; CHECK-NEXT:    br i1 [[TOBOOL5_NOT]], label %[[FOR_INC]], label %[[IF_THEN6:.*]]
+; CHECK:       [[IF_THEN6]]:
+; CHECK-NEXT:    [[ARRAYIDX8:%.*]] = getelementptr inbounds float, ptr [[DATA1]], i64 [[IV]]
+; CHECK-NEXT:    [[TMP4:%.*]] = load float, ptr [[ARRAYIDX8]], align 4
+; CHECK-NEXT:    br label %[[FOR_INC]]
+; CHECK:       [[FOR_INC]]:
+; CHECK-NEXT:    [[T_1]] = phi float [ [[TMP2]], %[[IF_THEN]] ], [ [[T_016]], %[[IF_THEN6]] ], [ [[T_016]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[S_1]] = phi float [ [[S_017]], %[[IF_THEN]] ], [ [[TMP4]], %[[IF_THEN6]] ], [ [[S_017]], %[[IF_ELSE]] ]
+; CHECK-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; CHECK-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; CHECK-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp15 = icmp sgt i32 %N, 0
@@ -1890,8 +2430,31 @@ for.inc:                                          ; preds = %if.then, %if.then6,
 ;   return idx;
 ; }
 define i64 @idx_scalar(ptr %a, ptr %b, i64 %ii, i64 %n) {
-; EVL-LABEL: @idx_scalar(
-; EVL-NOT: vector.body:
+; EVL-LABEL: define i64 @idx_scalar(
+; EVL-SAME: ptr [[A:%.*]], ptr [[B:%.*]], i64 [[II:%.*]], i64 [[N:%.*]]) #[[ATTR0]] {
+; EVL-NEXT:  [[ENTRY:.*]]:
+; EVL-NEXT:    [[CMP8_NOT:%.*]] = icmp eq i64 [[N]], 0
+; EVL-NEXT:    br i1 [[CMP8_NOT]], label %[[EXIT:.*]], label %[[LOOP_PREHEADER:.*]]
+; EVL:       [[LOOP_PREHEADER]]:
+; EVL-NEXT:    br label %[[LOOP:.*]]
+; EVL:       [[EXIT_LOOPEXIT:.*]]:
+; EVL-NEXT:    [[COND_LCSSA:%.*]] = phi i64 [ [[COND:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    br label %[[EXIT]]
+; EVL:       [[EXIT]]:
+; EVL-NEXT:    [[IDX_0_LCSSA:%.*]] = phi i64 [ [[II]], %[[ENTRY]] ], [ [[COND_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; EVL-NEXT:    ret i64 [[IDX_0_LCSSA]]
+; EVL:       [[LOOP]]:
+; EVL-NEXT:    [[I_010:%.*]] = phi i64 [ [[INC:%.*]], %[[LOOP]] ], [ 0, %[[LOOP_PREHEADER]] ]
+; EVL-NEXT:    [[IDX_09:%.*]] = phi i64 [ [[COND]], %[[LOOP]] ], [ [[II]], %[[LOOP_PREHEADER]] ]
+; EVL-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i64, ptr [[A]], i64 [[I_010]]
+; EVL-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX]], align 8
+; EVL-NEXT:    [[ARRAYIDX1:%.*]] = getelementptr inbounds i64, ptr [[B]], i64 [[I_010]]
+; EVL-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX1]], align 8
+; EVL-NEXT:    [[CMP2:%.*]] = icmp sgt i64 [[TMP0]], [[TMP1]]
+; EVL-NEXT:    [[COND]] = select i1 [[CMP2]], i64 [[I_010]], i64 [[IDX_09]]
+; EVL-NEXT:    [[INC]] = add nuw i64 [[I_010]], 1
+; EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[INC]], [[N]]
+; EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 ; NO-EVL-LABEL: define i64 @idx_scalar(
 ; NO-EVL-SAME: ptr [[A:%.*]], ptr [[B:%.*]], i64 [[II:%.*]], i64 [[N:%.*]]) #[[ATTR0]] {
@@ -1922,7 +2485,7 @@ define i64 @idx_scalar(ptr %a, ptr %b, i64 %ii, i64 %n) {
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 2 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[VEC_IND:%.*]] = phi <vscale x 2 x i64> [ [[INDUCTION]], %[[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 2 x i64> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 2 x i64> [ shufflevector (<vscale x 2 x i64> insertelement (<vscale x 2 x i64> poison, i64 poison, i64 0), <vscale x 2 x i64> poison, <vscale x 2 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i64, ptr [[A]], i64 [[TMP10]]
 ; NO-EVL-NEXT:    [[TMP12:%.*]] = getelementptr inbounds i64, ptr [[TMP11]], i32 0
@@ -2006,8 +2569,31 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return idx;
 ; }
 define dso_local i64 @idx_scalar_dec(ptr %a, ptr %b, i64 %ii, i64 %n) {
-; CHECK-LABEL: @idx_scalar_dec(
-; CHECK-NOT: vector.body:
+; CHECK-LABEL: define dso_local i64 @idx_scalar_dec(
+; CHECK-SAME: ptr [[A:%.*]], ptr [[B:%.*]], i64 [[II:%.*]], i64 [[N:%.*]]) #[[ATTR0]] {
+; CHECK-NEXT:  [[ENTRY:.*]]:
+; CHECK-NEXT:    [[CMP_NOT9:%.*]] = icmp eq i64 [[N]], 0
+; CHECK-NEXT:    br i1 [[CMP_NOT9]], label %[[EXIT:.*]], label %[[LOOP_PREHEADER:.*]]
+; CHECK:       [[LOOP_PREHEADER]]:
+; CHECK-NEXT:    br label %[[LOOP:.*]]
+; CHECK:       [[EXIT_LOOPEXIT:.*]]:
+; CHECK-NEXT:    [[COND_LCSSA:%.*]] = phi i64 [ [[COND:%.*]], %[[LOOP]] ]
+; CHECK-NEXT:    br label %[[EXIT]]
+; CHECK:       [[EXIT]]:
+; CHECK-NEXT:    [[IDX_0_LCSSA:%.*]] = phi i64 [ [[II]], %[[ENTRY]] ], [ [[COND_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; CHECK-NEXT:    ret i64 [[IDX_0_LCSSA]]
+; CHECK:       [[LOOP]]:
+; CHECK-NEXT:    [[I_011:%.*]] = phi i64 [ [[SUB:%.*]], %[[LOOP]] ], [ [[N]], %[[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[IDX_010:%.*]] = phi i64 [ [[COND]], %[[LOOP]] ], [ [[II]], %[[LOOP_PREHEADER]] ]
+; CHECK-NEXT:    [[SUB]] = add i64 [[I_011]], -1
+; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i64, ptr [[A]], i64 [[SUB]]
+; CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[ARRAYIDX]], align 8
+; CHECK-NEXT:    [[ARRAYIDX2:%.*]] = getelementptr inbounds i64, ptr [[B]], i64 [[SUB]]
+; CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[ARRAYIDX2]], align 8
+; CHECK-NEXT:    [[CMP3:%.*]] = icmp sgt i64 [[TMP0]], [[TMP1]]
+; CHECK-NEXT:    [[COND]] = select i1 [[CMP3]], i64 [[I_011]], i64 [[IDX_010]]
+; CHECK-NEXT:    [[CMP_NOT:%.*]] = icmp eq i64 [[SUB]], 0
+; CHECK-NEXT:    br i1 [[CMP_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp.not9 = icmp eq i64 %n, 0
@@ -2046,8 +2632,31 @@ loop:                                         ; preds = %loop.preheader, %loop
 ;   return t; // use t
 ; }
 define i32 @simple_csa_int_select_neg_cond(i32 %N, ptr %data) {
-; EVL-LABEL: @simple_csa_int_select_neg_cond(
-; EVL-NOT: vector.body:
+; EVL-LABEL: define i32 @simple_csa_int_select_neg_cond(
+; EVL-SAME: i32 [[N:%.*]], ptr [[DATA:%.*]]) #[[ATTR0]] {
+; EVL-NEXT:  [[ENTRY:.*]]:
+; EVL-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[N]], 0
+; EVL-NEXT:    br i1 [[CMP9]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; EVL:       [[LOOP_PREHEADER]]:
+; EVL-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; EVL-NEXT:    br label %[[LOOP:.*]]
+; EVL:       [[EXIT_LOOPEXIT:.*]]:
+; EVL-NEXT:    [[SPEC_SELECT_LCSSA:%.*]] = phi i32 [ [[SPEC_SELECT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    br label %[[EXIT]]
+; EVL:       [[EXIT]]:
+; EVL-NEXT:    [[T_0_LCSSA:%.*]] = phi i32 [ 0, %[[ENTRY]] ], [ [[SPEC_SELECT_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; EVL-NEXT:    ret i32 [[T_0_LCSSA]]
+; EVL:       [[LOOP]]:
+; EVL-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; EVL-NEXT:    [[T_010:%.*]] = phi i32 [ 0, %[[LOOP_PREHEADER]] ], [ [[SPEC_SELECT]], %[[LOOP]] ]
+; EVL-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[IV]]
+; EVL-NEXT:    [[TMP0:%.*]] = load i32, ptr [[ARRAYIDX]], align 4
+; EVL-NEXT:    [[TMP1:%.*]] = zext i32 [[TMP0]] to i64
+; EVL-NEXT:    [[CMP1_NOT:%.*]] = icmp eq i64 [[IV]], [[TMP1]]
+; EVL-NEXT:    [[SPEC_SELECT]] = select i1 [[CMP1_NOT]], i32 [[T_010]], i32 [[TMP0]]
+; EVL-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 ; NO-EVL-LABEL: define i32 @simple_csa_int_select_neg_cond(
 ; NO-EVL-SAME: i32 [[N:%.*]], ptr [[DATA:%.*]]) #[[ATTR0]] {
@@ -2079,7 +2688,7 @@ define i32 @simple_csa_int_select_neg_cond(i32 %N, ptr %data) {
 ; NO-EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 4 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[VEC_IND:%.*]] = phi <vscale x 4 x i64> [ [[INDUCTION]], %[[VECTOR_PH]] ], [ [[VEC_IND_NEXT:%.*]], %[[VECTOR_BODY]] ]
-; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; NO-EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 4 x i32> [ shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 poison, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; NO-EVL-NEXT:    [[TMP10:%.*]] = add i64 [[INDEX]], 0
 ; NO-EVL-NEXT:    [[TMP11:%.*]] = getelementptr inbounds i32, ptr [[DATA]], i64 [[TMP10]]
 ; NO-EVL-NEXT:    [[TMP12:%.*]] = getelementptr inbounds i32, ptr [[TMP11]], i32 0
@@ -2187,7 +2796,7 @@ define ptr @simple_csa_ptr_select(i32 %N, ptr %data, i64 %a) {
 ; EVL-NEXT:    [[INDEX:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[EVL_BASED_IV:%.*]] = phi i64 [ 0, %[[VECTOR_PH]] ], [ [[INDEX_EVL_NEXT:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_MASK_PHI:%.*]] = phi <vscale x 2 x i1> [ zeroinitializer, %[[VECTOR_PH]] ], [ [[CSA_MASK_SEL:%.*]], %[[VECTOR_BODY]] ]
-; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 2 x ptr> [ poison, %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
+; EVL-NEXT:    [[CSA_DATA_PHI:%.*]] = phi <vscale x 2 x ptr> [ shufflevector (<vscale x 2 x ptr> insertelement (<vscale x 2 x ptr> poison, ptr poison, i64 0), <vscale x 2 x ptr> poison, <vscale x 2 x i32> zeroinitializer), %[[VECTOR_PH]] ], [ [[CSA_DATA_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[CSA_VL_PHI:%.*]] = phi i32 [ 0, %[[VECTOR_PH]] ], [ [[CSA_VL_SEL:%.*]], %[[VECTOR_BODY]] ]
 ; EVL-NEXT:    [[AVL:%.*]] = sub i64 [[WIDE_TRIP_COUNT]], [[EVL_BASED_IV]]
 ; EVL-NEXT:    [[TMP5:%.*]] = call i32 @llvm.experimental.get.vector.length.i64(i64 [[AVL]], i32 2, i1 true)
@@ -2236,8 +2845,32 @@ define ptr @simple_csa_ptr_select(i32 %N, ptr %data, i64 %a) {
 ; EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
 ; EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]], !llvm.loop [[LOOP11:![0-9]+]]
 ;
-; NO-EVL-LABEL: @simple_csa_ptr_select(
-; NO-EVL-NOT: vector.body:
+; NO-EVL-LABEL: define ptr @simple_csa_ptr_select(
+; NO-EVL-SAME: i32 [[N:%.*]], ptr [[DATA:%.*]], i64 [[A:%.*]]) #[[ATTR0]] {
+; NO-EVL-NEXT:  [[ENTRY:.*]]:
+; NO-EVL-NEXT:    [[CMP9:%.*]] = icmp sgt i32 [[N]], 0
+; NO-EVL-NEXT:    br i1 [[CMP9]], label %[[LOOP_PREHEADER:.*]], label %[[EXIT:.*]]
+; NO-EVL:       [[LOOP_PREHEADER]]:
+; NO-EVL-NEXT:    [[WIDE_TRIP_COUNT:%.*]] = zext i32 [[N]] to i64
+; NO-EVL-NEXT:    br label %[[LOOP:.*]]
+; NO-EVL:       [[EXIT_LOOPEXIT:.*]]:
+; NO-EVL-NEXT:    [[SPEC_SELECT_LCSSA:%.*]] = phi ptr [ [[SPEC_SELECT:%.*]], %[[LOOP]] ]
+; NO-EVL-NEXT:    br label %[[EXIT]]
+; NO-EVL:       [[EXIT]]:
+; NO-EVL-NEXT:    [[T_0_LCSSA:%.*]] = phi ptr [ null, %[[ENTRY]] ], [ [[SPEC_SELECT_LCSSA]], %[[EXIT_LOOPEXIT]] ]
+; NO-EVL-NEXT:    ret ptr [[T_0_LCSSA]]
+; NO-EVL:       [[LOOP]]:
+; NO-EVL-NEXT:    [[IV:%.*]] = phi i64 [ 0, %[[LOOP_PREHEADER]] ], [ [[IV_NEXT:%.*]], %[[LOOP]] ]
+; NO-EVL-NEXT:    [[T_010:%.*]] = phi ptr [ null, %[[LOOP_PREHEADER]] ], [ [[SPEC_SELECT]], %[[LOOP]] ]
+; NO-EVL-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds ptr, ptr [[DATA]], i64 [[IV]]
+; NO-EVL-NEXT:    [[TMP0:%.*]] = load ptr, ptr [[ARRAYIDX]], align 8
+; NO-EVL-NEXT:    [[TMP1:%.*]] = load i32, ptr [[TMP0]], align 4
+; NO-EVL-NEXT:    [[TMP2:%.*]] = sext i32 [[TMP1]] to i64
+; NO-EVL-NEXT:    [[CMP1:%.*]] = icmp slt i64 [[A]], [[TMP2]]
+; NO-EVL-NEXT:    [[SPEC_SELECT]] = select i1 [[CMP1]], ptr [[TMP0]], ptr [[T_010]]
+; NO-EVL-NEXT:    [[IV_NEXT]] = add nuw nsw i64 [[IV]], 1
+; NO-EVL-NEXT:    [[EXITCOND_NOT:%.*]] = icmp eq i64 [[IV_NEXT]], [[WIDE_TRIP_COUNT]]
+; NO-EVL-NEXT:    br i1 [[EXITCOND_NOT]], label %[[EXIT_LOOPEXIT]], label %[[LOOP]]
 ;
 entry:
   %cmp9 = icmp sgt i32 %N, 0
@@ -2264,3 +2897,36 @@ loop:
   %exitcond.not = icmp eq i64 %iv.next, %wide.trip.count
   br i1 %exitcond.not, label %exit, label %loop
 }
+;.
+; EVL: [[LOOP0]] = distinct !{[[LOOP0]], [[META1:![0-9]+]], [[META2:![0-9]+]]}
+; EVL: [[META1]] = !{!"llvm.loop.isvectorized", i32 1}
+; EVL: [[META2]] = !{!"llvm.loop.unroll.runtime.disable"}
+; EVL: [[LOOP3]] = distinct !{[[LOOP3]], [[META2]], [[META1]]}
+; EVL: [[LOOP4]] = distinct !{[[LOOP4]], [[META1]], [[META2]]}
+; EVL: [[LOOP5]] = distinct !{[[LOOP5]], [[META2]], [[META1]]}
+; EVL: [[LOOP6]] = distinct !{[[LOOP6]], [[META1]], [[META2]]}
+; EVL: [[LOOP7]] = distinct !{[[LOOP7]], [[META2]], [[META1]]}
+; EVL: [[LOOP8]] = distinct !{[[LOOP8]], [[META1]], [[META2]]}
+; EVL: [[LOOP9]] = distinct !{[[LOOP9]], [[META2]], [[META1]]}
+; EVL: [[LOOP10]] = distinct !{[[LOOP10]], [[META1]], [[META2]]}
+; EVL: [[LOOP11]] = distinct !{[[LOOP11]], [[META2]], [[META1]]}
+;.
+; NO-EVL: [[LOOP0]] = distinct !{[[LOOP0]], [[META1:![0-9]+]], [[META2:![0-9]+]]}
+; NO-EVL: [[META1]] = !{!"llvm.loop.isvectorized", i32 1}
+; NO-EVL: [[META2]] = !{!"llvm.loop.unroll.runtime.disable"}
+; NO-EVL: [[LOOP3]] = distinct !{[[LOOP3]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP4]] = distinct !{[[LOOP4]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP5]] = distinct !{[[LOOP5]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP6]] = distinct !{[[LOOP6]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP7]] = distinct !{[[LOOP7]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP8]] = distinct !{[[LOOP8]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP9]] = distinct !{[[LOOP9]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP10]] = distinct !{[[LOOP10]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP11]] = distinct !{[[LOOP11]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP12]] = distinct !{[[LOOP12]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP13]] = distinct !{[[LOOP13]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP14]] = distinct !{[[LOOP14]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP15]] = distinct !{[[LOOP15]], [[META2]], [[META1]]}
+; NO-EVL: [[LOOP16]] = distinct !{[[LOOP16]], [[META1]], [[META2]]}
+; NO-EVL: [[LOOP17]] = distinct !{[[LOOP17]], [[META2]], [[META1]]}
+;.

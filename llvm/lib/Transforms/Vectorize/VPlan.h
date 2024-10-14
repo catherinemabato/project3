@@ -240,7 +240,7 @@ class VPCSAExtractScalarRecipe;
 /// assignment.
 class VPCSAState {
   VPValue *VPInitScalar = nullptr;
-  VPInstruction *VPInitData = nullptr;
+  VPValue *VPInitData = nullptr;
   VPInstruction *VPMaskPhi = nullptr;
   VPInstruction *VPAnyActive = nullptr;
   VPCSAHeaderPHIRecipe *VPPhiRecipe = nullptr;
@@ -248,7 +248,7 @@ class VPCSAState {
   VPCSAExtractScalarRecipe *VPExtractScalar = nullptr;
 
 public:
-  VPCSAState(VPValue *VPInitScalar, VPInstruction *InitData,
+  VPCSAState(VPValue *VPInitScalar, VPValue *InitData,
              VPInstruction *MaskPhi)
       : VPInitScalar(VPInitScalar), VPInitData(InitData), VPMaskPhi(MaskPhi) {}
 
@@ -256,7 +256,7 @@ public:
 
   VPValue *getVPInitScalar() const { return VPInitScalar; }
 
-  VPInstruction *getVPInitData() const { return VPInitData; }
+  VPValue *getVPInitData() const { return VPInitData; }
 
   VPInstruction *getVPMaskPhi() const { return VPMaskPhi; }
 
@@ -1314,8 +1314,6 @@ public:
     // operand). Only generates scalar values (either for the first lane only or
     // for all lanes, depending on its uses).
     PtrAdd,
-    CSAInitMask,
-    CSAInitData,
     CSAMaskPhi,
     CSAMaskSel,
     CSAVLPhi,

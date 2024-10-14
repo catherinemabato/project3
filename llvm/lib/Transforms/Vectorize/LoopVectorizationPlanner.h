@@ -225,16 +225,6 @@ public:
     return createInstruction(VPInstruction::PtrAdd, {Ptr, Offset}, DL, Name);
   }
 
-  VPInstruction *createCSAInitMask(DebugLoc DL, const Twine &Name) {
-    return createInstruction(VPInstruction::CSAInitMask, {}, DL, Name);
-  }
-
-  VPInstruction *createCSAInitData(VPValue *InitScalar, DebugLoc DL,
-                                   const Twine &Name) {
-    return createInstruction(VPInstruction::CSAInitData, {InitScalar}, DL,
-                             Name);
-  }
-
   VPInstruction *createCSAMaskPhi(VPValue *InitMask, DebugLoc DL,
                                   const Twine &Name) {
     return createInstruction(VPInstruction::CSAMaskPhi, {InitMask}, DL, Name);

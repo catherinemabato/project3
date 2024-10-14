@@ -8689,7 +8689,7 @@ static void
 addCSAPreprocessRecipes(const LoopVectorizationLegality::CSAList &CSAs,
                         Loop *OrigLoop, VPBasicBlock *PreheaderVPBB,
                         VPBasicBlock *HeaderVPBB, DebugLoc DL, VFRange &Range,
-                        VPlan &Plan) {
+                        VPlan &Plan, VPRecipeBuilder &Builder) {
 
   // Don't build full CSA for VF=ElementCount::getFixed(1)
   bool IsScalarVF = LoopVectorizationPlanner::getDecisionAndClampRange(
@@ -8708,8 +8708,10 @@ addCSAPreprocessRecipes(const LoopVectorizationLegality::CSAList &CSAs,
     }
 
     VPBuilder PHB(PreheaderVPBB);
-    auto *VPInitMask = PHB.createCSAInitMask(DL, "csa.init.mask");
-    auto *VPInitData = PHB.createCSAInitData(VPInitScalar, DL, "csa.init.data");
+    auto *VPInitMask = Builder.getVPValueOrAddLiveIn(
+        ConstantInt::getFalse(Type::getInt1Ty(CSA.first->getContext())));
+    auto *VPInitData =
+        Builder.getVPValueOrAddLiveIn(PoisonValue::get(CSA.first->getType()));
 
     VPBuilder HB(HeaderVPBB);
     auto *VPMaskPhi = HB.createCSAMaskPhi(VPInitMask, DL, "csa.mask.phi");
@@ -9096,11 +9098,12 @@ LoopVectorizationPlanner::tryToBuildVPlanWithVPRecipes(VFRange &Range) {
   bool HasNUW = Style == TailFoldingStyle::None;
   addCanonicalIVRecipes(*Plan, Legal->getWidestInductionType(), HasNUW, DL);
 
+  VPRecipeBuilder RecipeBuilder(*Plan, OrigLoop, TLI, Legal, CM, PSE, Builder);
+
   addCSAPreprocessRecipes(Legal->getCSAs(), OrigLoop, Plan->getPreheader(),
                           Plan->getVectorLoopRegion()->getEntryBasicBlock(), DL,
-                          Range, *Plan);
+                          Range, *Plan, RecipeBuilder);
 
-  VPRecipeBuilder RecipeBuilder(*Plan, OrigLoop, TLI, Legal, CM, PSE, Builder);
 
   // ---------------------------------------------------------------------------
   // Pre-construction: record ingredients whose recipes we'll need to further
