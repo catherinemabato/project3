@@ -34810,6 +34810,9 @@ bool X86TargetLowering::isVectorLoadExtDesirable(SDValue ExtVal) const {
 
 bool X86TargetLowering::isFMAFasterThanFMulAndFAdd(const MachineFunction &MF,
                                                    EVT VT) const {
+  if (Subtarget.useSoftFloat())
+    return false;
+
   if (!Subtarget.hasAnyFMA())
     return false;
 
