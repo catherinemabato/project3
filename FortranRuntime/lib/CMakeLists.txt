@@ -1,4 +1,4 @@
-#===-- unittests/Common/CMakeLists.txt -------------------------------------===#
+#===-- lib/CMakeLists.txt --------------------------------------------------===#
 #
 # Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 # See https://llvm.org/LICENSE.txt for license information.
@@ -6,8 +6,8 @@
 #
 #===------------------------------------------------------------------------===#
 
-add_fortranruntime_unittest(FlangCommonTests
-  FastIntSetTest.cpp
-  LINK_LIBS
-    FortranRuntime.unittest
-)
+add_subdirectory(Runtime)
+if (FORTRANRUNTIME_INCLUDE_TESTS)
+  add_subdirectory(Testing)
+endif ()
+
