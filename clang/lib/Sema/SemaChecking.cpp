@@ -3246,6 +3246,7 @@ void Sema::checkLifetimeCaptureBy(FunctionDecl *FD, bool IsMemberFunction,
       checkCaptureLifetime(*this, CE, Captured);
     }
   }
+  // Check when the 'this' object is captured.
   if (IsMemberFunction) {
     TypeSourceInfo *TSI = FD->getTypeSourceInfo();
     if (!TSI)

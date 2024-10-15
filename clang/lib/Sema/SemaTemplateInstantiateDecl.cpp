@@ -4948,7 +4948,9 @@ FunctionDecl *Sema::InstantiateFunctionDeclaration(
   MultiLevelTemplateArgumentList MArgs(FTD, Args->asArray(),
                                        /*Final=*/false);
 
-  return cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
+  auto *Res = cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
+  inferLifetimeCaptureByAttribute(Res);
+  return Res;
 }
 
 void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
@@ -4958,7 +4960,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
                                          bool AtEndOfTU) {
   if (Function->isInvalidDecl() || isa<CXXDeductionGuideDecl>(Function))
     return;
-
+  inferLifetimeCaptureByAttribute(Function);
   // Never instantiate an explicit specialization except if it is a class scope
   // explicit specialization.
   TemplateSpecializationKind TSK =

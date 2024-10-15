@@ -272,8 +272,10 @@ void Sema::inferLifetimeBoundAttribute(FunctionDecl *FD) {
 }
 
 void Sema::inferLifetimeCaptureByAttribute(FunctionDecl *FD) {
+  if (!FD)
+    return;
   auto *MD = dyn_cast<CXXMethodDecl>(FD);
-  if (!MD || !MD->isInStdNamespace())
+  if (!MD || !MD->getIdentifier())
     return;
   static const llvm::StringSet<> CapturingMethods{"insert", "push",
                                                   "push_front", "push_back"};
@@ -281,14 +283,18 @@ void Sema::inferLifetimeCaptureByAttribute(FunctionDecl *FD) {
     return;
   for (ParmVarDecl *PVD : MD->parameters()) {
     if (PVD->hasAttr<LifetimeCaptureByAttr>())
+      return;
+    auto *RD = PVD->getType().getNonReferenceType()->getAsCXXRecordDecl();
+    if (!RD)
       continue;
-    // PVD->dumpColor();
-    // auto *RD = PVD->getType()->getAsCXXRecordDecl();
-    // if (RD && RD->hasAttr<PointerAttr>()) {
-    // int CaptureByThis[] = {0}; // Replace with THIS.
-    // PVD->addAttr(
-    //     LifetimeCaptureByAttr::CreateImplicit(Context, CaptureByThis, 1));
-    // }
+    RD = RD->getCanonicalDecl();
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RD))
+      RD = CTSD->getSpecializedTemplate()->getTemplatedDecl();
+    if (RD && RD->hasAttr<PointerAttr>()) {
+      int CaptureByThis[] = {LifetimeCaptureByAttr::THIS};
+      PVD->addAttr(
+          LifetimeCaptureByAttr::CreateImplicit(Context, CaptureByThis, 1));
+    }
   }
 }
 

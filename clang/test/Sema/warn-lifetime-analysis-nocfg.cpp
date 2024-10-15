@@ -175,8 +175,12 @@ struct vector {
 
   template<typename InputIterator>
 	vector(InputIterator first, InputIterator __last);
+  // void push_back(const T&);
+  void push_back(T&&);
 
   T &at(int n);
+
+  void insert(iterator, T&&);
 };
 
 template<typename T>
@@ -857,11 +861,23 @@ void use() {
   s.captureSV(strcopy(std::string()));
 
   // This is captured.
-  ThisIsCaptured{}.capture(s); //expected-warning {{object captured by 's'}}
+  ThisIsCaptured{}.capture(s); // expected-warning {{object captured by 's'}}
   ThisIsCaptured TIS;
   TIS.capture(s);
 }
-} // namespace lifetime_capture_by_usage
+
+// Infer attribute in STL container of pointers.
+void container_of_pointers() {
+  std::vector<std::string> vs;
+  std::vector<std::string_view> vsv;
+
+  vs.push_back(std::string()); // Ok.
+  vsv.push_back(std::string()); // expected-warning {{bject captured by 'vsv' will be destroyed at the end of the full-expression}}
+
+  vs.insert(vs.begin(), std::string()); // Ok.
+  vsv.insert(vsv.begin(), std::string()); // expected-warning {{bject captured by 'vsv' will be destroyed at the end of the full-expression}}
+}
+} // namespace lifetime_capture_by
 
 // Test for templated code.
 // 2 nested function calls foo(sv, bar(sv, setsv));
