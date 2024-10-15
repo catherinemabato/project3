@@ -175,7 +175,7 @@ struct vector {
 
   template<typename InputIterator>
 	vector(InputIterator first, InputIterator __last);
-  // void push_back(const T&);
+  void push_back(const T&);
   void push_back(T&&);
 
   T &at(int n);
@@ -807,6 +807,10 @@ void noCaptureSV(std::string_view x, S&s);
 void captureS(const std::string& x [[clang::lifetime_capture_by(s)]], S&s);
 void captureRValS(std::string&& x [[clang::lifetime_capture_by(s)]], S&s);
 
+const std::string* getPointerLB(const std::string& s[[clang::lifetimebound]]);
+const std::string* getPointerNoLB(const std::string& s);
+void capturePointer(const std::string* x [[clang::lifetime_capture_by(s)]], S&s);
+
 struct ThisIsCaptured {
   void capture(S& s) [[clang::lifetime_capture_by(s)]];
   void bar(S& s) [[clang::lifetime_capture_by(abcd)]]; // expected-error {{'lifetime_capture_by' attribute argument 'abcd' is not a known function parameter}}
@@ -826,6 +830,11 @@ void use() {
 
   noCaptureInt(1, s);
   noCaptureInt(local, s);
+
+  // Capture lifetimebound pointer.
+  capturePointer(getPointerLB(std::string()), s); // expected-warning {{object captured by 's'}}
+  capturePointer(getPointerLB(*getPointerLB(std::string())), s); // expected-warning {{object captured by 's'}}
+  capturePointer(getPointerNoLB(std::string()), s);
 
   // Capture using std::string_view.
   captureSV(local_sv, s);
@@ -868,14 +877,20 @@ void use() {
 
 // Infer attribute in STL container of pointers.
 void container_of_pointers() {
+  std::string local;
   std::vector<std::string> vs;
   std::vector<std::string_view> vsv;
+  std::vector<const std::string*> vp;
 
   vs.push_back(std::string()); // Ok.
-  vsv.push_back(std::string()); // expected-warning {{bject captured by 'vsv' will be destroyed at the end of the full-expression}}
+  vsv.push_back(std::string()); // expected-warning {{object captured by 'vsv' will be destroyed at the end of the full-expression}}
+  vp.push_back(getPointerLB(std::string())); // expected-warning {{object captured by 'vp'}}
+  vp.push_back(getPointerLB(*getPointerLB(std::string()))); // expected-warning {{object captured by 'vp'}}
+  vp.push_back(getPointerLB(local));
+  vp.push_back(getPointerNoLB(std::string()));
 
   vs.insert(vs.begin(), std::string()); // Ok.
-  vsv.insert(vsv.begin(), std::string()); // expected-warning {{bject captured by 'vsv' will be destroyed at the end of the full-expression}}
+  vsv.insert(vsv.begin(), std::string()); // expected-warning {{object captured by 'vsv' will be destroyed at the end of the full-expression}}
 }
 } // namespace lifetime_capture_by
 
