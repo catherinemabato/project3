@@ -363,6 +363,19 @@ public:
     return DAG;
   }
 
+  ScheduleDAGInstrs *
+  createPostMachineScheduler(MachineSchedContext *C) const override {
+    ScheduleDAGMI *DAG = nullptr;
+    if (EnableMISchedLoadStoreClustering) {
+      DAG = createGenericSchedPostRA(C);
+      DAG->addMutation(createLoadClusterDAGMutation(
+          DAG->TII, DAG->TRI, /*ReorderWhileClustering=*/true));
+      DAG->addMutation(createStoreClusterDAGMutation(
+          DAG->TII, DAG->TRI, /*ReorderWhileClustering=*/true));
+    }
+    return DAG;
+  }
+  
   void addIRPasses() override;
   bool addPreISel() override;
   void addCodeGenPrepare() override;
