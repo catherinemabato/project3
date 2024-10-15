@@ -2860,8 +2860,7 @@ bool X86TargetLowering::IsEligibleForTailCallOptimization(
   // if the function is required to preserve all the registers. Conservatively
   // prevent tail optimization even if hypothetically all the registers are used
   // for passing formal parameters or returning values.
-  if (CLI.CB &&
-      CLI.CB->getFunction()->hasFnAttribute("no_caller_saved_registers"))
+  if (CallerF.hasFnAttribute("no_caller_saved_registers"))
     return false;
 
   unsigned StackArgsSize = CCInfo.getStackSize();
