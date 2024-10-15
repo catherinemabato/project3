@@ -832,8 +832,6 @@ struct InstructionsState {
       : OpValue(OpValue), MainOp(MainOp), AltOp(AltOp) {}
 };
 
-} // end anonymous namespace
-
 struct InterchangeableInstruction {
   unsigned Opcode;
   SmallVector<Value *> Ops;
@@ -847,6 +845,8 @@ bool operator<(const InterchangeableInstruction &LHS,
   return LHS.Opcode < RHS.Opcode;
 }
 
+} // end anonymous namespace
+
 /// \returns a list of interchangeable instructions which \p I can be converted
 /// to.
 /// e.g.,
@@ -856,10 +856,10 @@ bool operator<(const InterchangeableInstruction &LHS,
 ///           x *   0                     -> x & 0
 ///           x *  -1   -> 0 - x
 /// TODO: support more patterns
-static SmallVector<InterchangeableInstruction, 6>
+static SmallVector<InterchangeableInstruction>
 getInterchangeableInstruction(Instruction *I) {
   // PII = Possible Interchangeable Instruction
-  SmallVector<InterchangeableInstruction, 6> PII;
+  SmallVector<InterchangeableInstruction> PII;
   unsigned Opcode = I->getOpcode();
   PII.emplace_back(Opcode, I->operands());
   if (!is_contained({Instruction::Shl, Instruction::Mul, Instruction::Sub,
@@ -2487,7 +2487,7 @@ public:
       OpsVec.resize(NumOperands);
       unsigned NumLanes = VL.size();
       InstructionsState S = getSameOpcode(VL, TLI);
-      for (unsigned OpIdx = 0; OpIdx != NumOperands; ++OpIdx)
+      for (unsigned OpIdx : seq<unsigned>(NumOperands))
         OpsVec[OpIdx].resize(NumLanes);
       for (auto [I, V] : enumerate(VL)) {
         assert(isa<Instruction>(V) && "Expected instruction");
@@ -2518,7 +2518,7 @@ public:
         // operations or alternating sequences (e.g., +, -), we can safely
         // tell the inverse operations by checking commutativity.
         bool IsInverseOperation = !isCommutative(cast<Instruction>(SelectedOp));
-        for (unsigned OpIdx = 0; OpIdx != NumOperands; ++OpIdx) {
+        for (unsigned OpIdx : seq<unsigned>(NumOperands)) {
           bool APO = (OpIdx == 0) ? false : IsInverseOperation;
           OpsVec[OpIdx][I] = {Iter->Ops[OpIdx], APO, false};
         }
@@ -3413,7 +3413,7 @@ private:
       Operands.resize(I0->getNumOperands());
       unsigned NumLanes = Scalars.size();
       unsigned NumOperands = I0->getNumOperands();
-      for (unsigned OpIdx = 0; OpIdx != NumOperands; ++OpIdx)
+      for (unsigned OpIdx : seq<unsigned>(NumOperands))
         Operands[OpIdx].resize(NumLanes);
       for (auto [I, V] : enumerate(Scalars)) {
         SmallVector<InterchangeableInstruction> IIList =
